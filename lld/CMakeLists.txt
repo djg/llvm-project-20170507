@@ -1,0 +1,171 @@
+# If we are not building as a part of LLVM, build lld as a standalone project,
+# using LLVM as an external library.
+
+cmake_minimum_required(VERSION 2.8)
+
+# FIXME: It may be removed when we use 2.8.12.
+if(CMAKE_VERSION VERSION_LESS 2.8.12)
+  # Invalidate a couple of keywords.
+  set(cmake_2_8_12_INTERFACE)
+  set(cmake_2_8_12_PRIVATE)
+else()
+  # Use ${cmake_2_8_12_KEYWORD} intead of KEYWORD in target_link_libraries().
+  set(cmake_2_8_12_INTERFACE INTERFACE)
+  set(cmake_2_8_12_PRIVATE PRIVATE)
+  if(POLICY CMP0022)
+    cmake_policy(SET CMP0022 NEW) # automatic when 2.8.12 is required
+  endif()
+endif()
+
+
+set(LLD_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(LLD_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+# Compute the LLD version from the LLVM version.
+string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" LLD_VERSION
+  ${PACKAGE_VERSION})
+message(STATUS "LLD version: ${LLD_VERSION}")
+
+string(REGEX REPLACE "([0-9]+)\\.[0-9]+(\\.[0-9]+)?" "\\1" LLD_VERSION_MAJOR
+  ${LLD_VERSION})
+string(REGEX REPLACE "[0-9]+\\.([0-9]+)(\\.[0-9]+)?" "\\1" LLD_VERSION_MINOR
+  ${LLD_VERSION})
+
+# Determine LLD revision and repository.
+# TODO: Figure out a way to get the revision and the repository on windows.
+if ( NOT CMAKE_SYSTEM_NAME MATCHES "Windows" )
+  execute_process(COMMAND ${CMAKE_SOURCE_DIR}/utils/GetSourceVersion ${LLD_SOURCE_DIR}
+                  OUTPUT_VARIABLE LLD_REVISION)
+
+  execute_process(COMMAND ${CMAKE_SOURCE_DIR}/utils/GetRepositoryPath ${LLD_SOURCE_DIR}
+                  OUTPUT_VARIABLE LLD_REPOSITORY)
+  if ( LLD_REPOSITORY )
+    # Replace newline characters with spaces
+    string(REGEX REPLACE "(\r?\n)+" " " LLD_REPOSITORY ${LLD_REPOSITORY})
+    # Remove leading spaces
+    STRING(REGEX REPLACE "^[ \t\r\n]+" "" LLD_REPOSITORY "${LLD_REPOSITORY}" )
+    # Remove trailing spaces
+    string(REGEX REPLACE "(\ )+$" "" LLD_REPOSITORY ${LLD_REPOSITORY})
+  endif()
+
+  if ( LLD_REVISION )
+    # Replace newline characters with spaces
+    string(REGEX REPLACE "(\r?\n)+" " " LLD_REVISION ${LLD_REVISION})
+    # Remove leading spaces
+    STRING(REGEX REPLACE "^[ \t\r\n]+" "" LLD_REVISION "${LLD_REVISION}" )
+    # Remove trailing spaces
+    string(REGEX REPLACE "(\ )+$" "" LLD_REVISION ${LLD_REVISION})
+  endif()
+endif ()
+
+# Configure the Version.inc file.
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/lld/Config/Version.inc.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/lld/Config/Version.inc)
+
+
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  message(FATAL_ERROR "In-source builds are not allowed. CMake would overwrite "
+"the makefiles distributed with LLVM. Please create a directory and run cmake "
+"from there, passing the path to this source directory as the last argument. "
+"This process created the file `CMakeCache.txt' and the directory "
+"`CMakeFiles'. Please delete them.")
+endif()
+
+list (APPEND CMAKE_MODULE_PATH "${LLD_SOURCE_DIR}/cmake/modules")
+
+option(LLD_USE_VTUNE
+       "Enable VTune user task tracking."
+       OFF)
+if (LLD_USE_VTUNE)
+  find_package(VTune)
+  if (VTUNE_FOUND)
+    include_directories(${VTune_INCLUDE_DIRS})
+    list(APPEND LLVM_COMMON_LIBS ${VTune_LIBRARIES})
+    add_definitions(-DLLD_HAS_VTUNE)
+  endif()
+endif()
+
+# lld requires c++11 to build. Make sure that we have a compiler and standard
+# library combination that can do that.
+if (NOT MSVC)
+  # gcc and clang require the -std=c++0x or -std=c++11 flag.
+  if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang" AND
+      NOT ("${CMAKE_CXX_FLAGS}" MATCHES ".*-std=(c|gnu)\\+\\+(0x|11|1y).*"))
+    message(FATAL_ERROR
+      "lld requires c++11. Clang and gcc require -std=c++0x or -std=c++11 to "
+      "enter this mode. Please set CMAKE_CXX_FLAGS accordingly.")
+  endif()
+elseif (MSVC_VERSION LESS 1700)
+  message(FATAL_ERROR "The selected compiler does not support c++11 which is "
+          "required to build lld.")
+endif()
+
+if (MSVC)
+  add_definitions(-wd4530) # Suppress 'warning C4530: C++ exception handler used, but unwind semantics are not enabled.'
+endif()
+
+macro(add_lld_library name)
+  llvm_process_sources(srcs ${ARGN})
+  if (MSVC_IDE OR XCODE)
+    string(REGEX MATCHALL "/[^/]+" split_path ${CMAKE_CURRENT_SOURCE_DIR})
+    list(GET split_path -1 dir)
+    file(GLOB_RECURSE headers
+      ../../include/lld${dir}/*.h)
+    set(srcs ${srcs} ${headers})
+  endif()
+  if (MODULE)
+    set(libkind MODULE)
+  elseif (SHARED_LIBRARY)
+    set(libkind SHARED)
+  else()
+    set(libkind)
+  endif()
+  add_library(${name} ${libkind} ${srcs})
+  llvm_update_compile_flags(${name} ${srcs})
+  if (LLVM_COMMON_DEPENDS)
+    add_dependencies(${name} ${LLVM_COMMON_DEPENDS})
+  endif()
+
+  target_link_libraries(${name} ${LLVM_USED_LIBS})
+  llvm_config(${name} ${LLVM_LINK_COMPONENTS})
+  target_link_libraries(${name} ${LLVM_COMMON_LIBS})
+
+  if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+    install(TARGETS ${name}
+      LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+      ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX})
+  endif()
+  set_target_properties(${name} PROPERTIES FOLDER "lld libraries")
+endmacro(add_lld_library)
+
+macro(add_lld_executable name)
+  add_llvm_executable(${name} ${ARGN})
+  set_target_properties(${name} PROPERTIES FOLDER "lld executables")
+endmacro(add_lld_executable)
+
+include_directories(BEFORE
+  ${CMAKE_CURRENT_BINARY_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+
+if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+  install(DIRECTORY include/
+    DESTINATION include
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN ".svn" EXCLUDE
+    )
+endif()
+
+add_subdirectory(lib)
+add_subdirectory(tools)
+add_subdirectory(utils)
+
+add_subdirectory(test)
+
+if (LLVM_INCLUDE_TESTS)
+  add_subdirectory(unittests)
+endif()
+
+add_subdirectory(docs)
