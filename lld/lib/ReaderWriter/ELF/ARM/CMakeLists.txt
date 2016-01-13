@@ -1,0 +1,12 @@
+add_lld_library(lldARMELFTarget
+  ARMLinkingContext.cpp
+  ARMTargetHandler.cpp
+  ARMRelocationHandler.cpp
+  ARMRelocationPass.cpp
+  LINK_LIBS
+    lldELF
+    lldReaderWriter
+    lldCore
+    LLVMObject
+    LLVMSupport
+  )
