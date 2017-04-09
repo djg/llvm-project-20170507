@@ -1,0 +1,29 @@
+;===- ./Lib/Target/VC4/LLVMBuild.txt ---------------------------*- Conf -*--===;
+
+[common]
+subdirectories = Disassembler InstPrinter MCTargetDesc TargetInfo
+
+[component_0]
+type = TargetGroup
+name = VC4
+parent = Target
+has_asmprinter = 1
+has_disassembler = 1
+
+[component_1]
+type = Library
+name = VC4CodeGen
+parent = VC4
+required_libraries =
+ Analysis
+ AsmPrinter
+ CodeGen
+ MC
+ SelectionDAG
+ Support
+ Target
+ TransformUtils
+ VC4AsmPrinter
+ VC4Desc
+ VC4Info
+add_to_library_groups = VC4

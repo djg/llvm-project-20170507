@@ -1,0 +1,8 @@
+;===--*- Conf -*--===;
+
+[component_0]
+type = Library
+name = VC4Desc
+parent = VC4
+required_libraries = MC VC4Info Support
+add_to_library_groups = VC4
