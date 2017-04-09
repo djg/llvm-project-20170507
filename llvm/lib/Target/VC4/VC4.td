@@ -1,6 +1,8 @@
 include "llvm/Target/Target.td"
 
+//===----------------------------------------------------------------------===//
 // Register File, Calling Conv, Instruction Desciptions
+//===----------------------------------------------------------------------===//
 
 include "VC4RegisterInfo.td"
 include "VC4InstrInfo.td"
@@ -8,11 +10,14 @@ include "VC4CallingConv.td"
 
 def VC4InstrInfo : InstrInfo;
 
-// VC4 Subtarget features
+//===----------------------------------------------------------------------===//
+// VideoCore-IV processors supported.
+//===----------------------------------------------------------------------===//
 
-// Asm Parser
-//def VC4AsmParser : AsmParser {
-//}
+class Proc<string Name, list<SubtargetFeature> Features>
+  : Processor<Name, NoItineraries, Features>;
+
+def : Proc<"vpu", []>;
 
 //===----------------------------------------------------------------------===//
 //  Declare the target which we are implementing
