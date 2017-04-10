@@ -12,6 +12,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "asm-printer"
 
+#define PRINT_ALIAS_INSTR
 #include "VC4GenAsmWriter.inc"
 
 void
@@ -44,4 +45,3 @@ VC4InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   assert(Op.isExpr() && "unknown operand kind in printOperand");
   Op.getExpr()->print(O, &MAI, true);
 }
-

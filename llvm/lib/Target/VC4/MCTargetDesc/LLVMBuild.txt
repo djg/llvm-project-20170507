@@ -4,5 +4,5 @@
 type = Library
 name = VC4Desc
 parent = VC4
-required_libraries = MC VC4Info Support
+required_libraries = MC Support VC4AsmPrinter VC4Info
 add_to_library_groups = VC4
