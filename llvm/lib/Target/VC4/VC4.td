@@ -14,10 +14,18 @@ def VC4InstrInfo : InstrInfo;
 // VideoCore-IV processors supported.
 //===----------------------------------------------------------------------===//
 
+def FeatureVPU : SubtargetFeature<"vpu", "VC4ArchVersion",
+                                  "VPU", "VideoCore-IV VPU Support",
+                                  []>;
+def FeatureQPU : SubtargetFeature<"qpu", "VC4ArchVersion",
+                                  "QPU", "VideoCore-IV QPU Support",
+                                  []>;
+
 class Proc<string Name, list<SubtargetFeature> Features>
   : Processor<Name, NoItineraries, Features>;
 
-def : Proc<"vpu", []>;
+def : Proc<"vpu", [FeatureVPU]>;
+def : Proc<"qpu", [FeatureQPU]>;
 
 //===----------------------------------------------------------------------===//
 //  Declare the target which we are implementing

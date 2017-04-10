@@ -31,6 +31,15 @@ class StringRef;
 
 class VC4Subtarget : public VC4GenSubtargetInfo {
   virtual void anchor();
+
+  enum VC4Arch {
+    VC4Default,
+    VPU, QPU
+  };
+
+  // VideoCore-IV architecture version
+  VC4Arch VC4ArchVersion;
+
   VC4InstrInfo InstrInfo;
   VC4FrameLowering FrameLowering;
   VC4TargetLowering TLInfo;

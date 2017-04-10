@@ -27,5 +27,15 @@ void VC4Subtarget::anchor() { }
 
 VC4Subtarget::VC4Subtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const TargetMachine &TM)
-  : VC4GenSubtargetInfo(TT, CPU, FS), InstrInfo(), FrameLowering(*this),
-    TLInfo(TM, *this), TSInfo() {}
+  : VC4GenSubtargetInfo(TT, CPU, FS), InstrInfo(), FrameLowering(*this)
+  , VC4ArchVersion(VC4Default)
+  , TLInfo(TM, *this)
+  , TSInfo() {
+
+  if (VC4ArchVersion == VC4Default)
+    VC4ArchVersion = VPU;
+
+  // Don't even attempt to generate code for QPU.
+  if (VC4ArchVersion == QPU)
+    report_fatal_error("Code generation for QPU is not implemented", false);
+}
