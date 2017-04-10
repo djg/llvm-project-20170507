@@ -22,6 +22,7 @@ public:
                  const MCSubtargetInfo &STI) override;
 
 private:
+  bool printAliasInstr(const MCInst *MI, raw_ostream &O);
   void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
 };
 

@@ -20,6 +20,15 @@ VC4InstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
 }
 
 void
+VC4InstPrinter::printInst(const MCInst *MI, raw_ostream &O, StringRef Annot,
+                          const MCSubtargetInfo &STI) {
+  // Try to print any aliases first.
+  if (!printAliasInstr(MI, O))
+    printInstruction(MI, O);
+  printAnnotation(O, Annot);
+}
+
+void
 VC4InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isReg()) {
@@ -33,7 +42,6 @@ VC4InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   }
 
   assert(Op.isExpr() && "unknown operand kind in printOperand");
-  // TODO:
-  //printExpr(Op.getExpr(), &MAI, O);
+  Op.getExpr()->print(O, &MAI, true);
 }
 

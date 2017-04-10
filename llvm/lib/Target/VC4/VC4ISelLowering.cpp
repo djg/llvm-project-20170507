@@ -13,7 +13,7 @@
 
 #include "VC4ISelLowering.h"
 #include "VC4.h"
-//#include "VC4MachineFunctionInfo.h"
+#include "VC4MachineFunctionInfo.h"
 #include "VC4Subtarget.h"
 #include "VC4TargetMachine.h"
 #include "VC4TargetObjectFile.h"
@@ -59,6 +59,15 @@ VC4TargetLowering::VC4TargetLowering(const TargetMachine &TM,
                                      const VC4Subtarget &Subtarget)
   : TargetLowering(TM), TM(TM), Subtarget(Subtarget) {
 
+  // Set up the register classes.
+  addRegisterClass(MVT::i32, &VC4::CRegsRegClass);
+
+  // Compute derived properties from the register classes
+  computeRegisterProperties(Subtarget.getRegisterInfo());
+
+  setStackPointerRegisterToSaveRestore(VC4::SP);
+
+  setSchedulingPreference(Sched::Source);
 }
 
 //===----------------------------------------------------------------------===//

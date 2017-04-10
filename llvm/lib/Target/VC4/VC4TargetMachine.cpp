@@ -38,6 +38,7 @@ VC4TargetMachine::VC4TargetMachine(const Target &T, const Triple &TT,
       TT, CPU, FS, Options, getEffectiveRelocModel(RM), CM, OL),
     TLOF(llvm::make_unique<VC4TargetObjectFile>()),
     Subtarget(TT, CPU, FS, *this) {
+  initAsmInfo();
 }
 
 VC4TargetMachine::~VC4TargetMachine() = default;
