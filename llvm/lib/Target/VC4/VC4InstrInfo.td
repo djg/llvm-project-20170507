@@ -3,10 +3,15 @@
 // Instruction format superclass
 
 include "VC4InstrFormats.td"
+include "VC4Operators.td"
 
 //===----------------------------------------------------------------------===//
 // Instruction Pattern Stuff
 //===----------------------------------------------------------------------===//
+
+//===---===//
+// Operands, Complex Patterns and Transformations Definitions.
+//===---===//
 
 def div2 : SDNodeXForm<imm, [{
   // Transform: imm/2
@@ -20,6 +25,7 @@ def div4 : SDNodeXForm<imm, [{
   return getI32Imm(N->getSExtValue()/4, SDLoc(N));
 }]>;
 
+def s16imm : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 def u6imm : PatLeaf<(imm), [{ return isInt<6>(N->getZExtValue()); }]>;
 
 // Instruction operand types
@@ -29,6 +35,13 @@ def U6ImmOp : Operand<i32> {
 
 def S5ImmOp : Operand<i32> {
   let DecoderMethod = "DecodeS6Imm";
+}
+
+// Address operand
+def mem : Operand<iPTR> {
+  let PrintMethod = "printMemOperand";
+  let MIOperandInfo = (ops CRegs, s16imm);
+  let EncoderMethod = "getMemEncoding";
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,27 +78,25 @@ def BL : S16_rd5_1<(outs), (ins ERegs:$rd), 0b011, "bl $rd", []>;
 // Version
 def VERSION : S16_rd5_1<(outs ERegs:$rd), (ins), 0b111, "version $rd", []>;
 
-// Memory Operations
+//===----------------------------------------------------------------------===//
+// ALU Instructions
+//===----------------------------------------------------------------------===//
 
-let mayLoad=1, hasExtraDefRegAllocReq=1 in {
-def LDM : S16_mem_mult<(outs), (ins), "ldm ", 0, 0, []>;
-def LDMpc : S16_mem_mult<(outs), (ins), "ldm ", 0, 1, []>;
+def ADDrr : VC4Inst<16, (outs ERegs:$dst),
+                    (ins ERegs:$src1, ERegs:$src2),
+                    "add $dst, $src1, $src2",
+                    [(set i32:$dst, (add i32:$src1, i32:$src2))]>;
+
+//===----------------------------------------------------------------------===//
+// Return Instructions
+//===----------------------------------------------------------------------===//
+
+let isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [LR] in {
+  def RET : VC4Inst<16, (outs),
+                    (ins variable_ops),
+                    "br lr",
+                    [(VC4RetFlag)]>;
 }
-
-let mayStore=1 in {
-def STM : S16_mem_mult<(outs), (ins), "stm ", 1, 0, []>;
-def STMlr : S16_mem_mult<(outs), (ins), "stm ", 1, 1, []>;
-}
-
-let Uses=[SP] in {
-let mayLoad=1 in
-def LDsp : S16_mem_sp<(outs CRegs:$rd), (ins S5ImmOp:$o), "ld $rd, (sp+$o)", 0, []>;
-
-let mayStore=1 in
-def STsp : S16_mem_sp<(outs), (ins CRegs:$rd, S5ImmOp:$o), "st $rd, (sp+$o)", 1, []>;
-}
-// Store multiple registers
-
 //===----------------------------------------------------------------------===//
 // Pseudo Instructions
 //===----------------------------------------------------------------------===//

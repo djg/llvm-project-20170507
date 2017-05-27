@@ -1,4 +1,11 @@
 //===-- VC4InstrFormats.td - VideoCore IV Instruction Formats -*- tablegen -*-===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
 
 class LoadStoreWidth<bits<2> val> {
   bits<2> Value = val;
@@ -8,7 +15,9 @@ def LSWu16   : LoadStoreWidth<1>;
 def LSWu8    : LoadStoreWidth<2>;
 def LSWs16s8 : LoadStoreWidth<3>;
 
+//===----------------------------------------------------------------------===//
 // Instruction format superclass
+//===----------------------------------------------------------------------===//
 class VC4Inst<int sz, dag outs, dag ins, string asmstr, list<dag> pattern>
     : Instruction {
   field bits<16> Inst;
@@ -58,7 +67,7 @@ class S16_rd4_1<bits<4> opc, dag outs, dag ins, string asmstr, list<dag> pattern
 class S16_rd5<dag outs, dag ins, string asmstr, list<dag> pattern>
     : S16<outs, ins, asmstr, pattern> {
   bits<5> rd;
-  
+
   let Inst{4-0} = rd;
 }
 

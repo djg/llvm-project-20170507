@@ -53,6 +53,8 @@ public:
   VC4TargetMachine &getVC4TargetMachine() const {
     return getTM<VC4TargetMachine>();
   }
+
+  bool addInstSelector() override;
 };
 
 } // end anonymous namespace
@@ -60,6 +62,12 @@ public:
 TargetPassConfig*
 VC4TargetMachine::createPassConfig(PassManagerBase &PM) {
   return new VC4PassConfig(this, PM);
+}
+
+bool
+VC4PassConfig::addInstSelector() {
+  addPass(createVC4ISelDag(getVC4TargetMachine(), getOptLevel()));
+  return false;
 }
 
 extern "C" void LLVMInitializeVC4Target() {

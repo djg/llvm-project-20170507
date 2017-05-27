@@ -12,14 +12,16 @@ add_public_tablegen_target(VC4CommonTableGen)
 add_llvm_target(VC4CodeGen
   VC4AsmPrinter.cpp
   VC4FrameLowering.cpp
+  VC4ISelDAGToDAG.cpp
   VC4ISelLowering.cpp
   VC4InstrInfo.cpp
+  VC4MachineFunctionInfo.cpp
+  VC4MCInstLower.cpp
+  VC4RegisterInfo.cpp
+  VC4SelectionDAGInfo.cpp
   VC4Subtarget.cpp
   VC4TargetMachine.cpp
   VC4TargetObjectFile.cpp
-  VC4RegisterInfo.cpp
-  VC4MachineFunctionInfo.cpp
-  VC4SelectionDAGInfo.cpp
   )
 
 add_subdirectory(Disassembler)

@@ -1,4 +1,11 @@
 //===-- VC4RegisterInfo.td - VideoCore-IV Register defs ----*- tablegen -*-===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
 
 class VC4ScalarReg<string n> : Register<n> {
   field bits<5> Num;
@@ -61,7 +68,7 @@ def RRegs : RegisterClass<"VC4", [i32, f32], 32,
    R16, R17, R18, R19, R20, R21, R22, R23,
    // Unallocatable
    GP, SP, LR, TP, SR, PC)> {
-  let isAllocatable = 0; 
+  let isAllocatable = 0;
 }
 
 // Control registers

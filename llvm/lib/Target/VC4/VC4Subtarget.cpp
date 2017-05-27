@@ -27,8 +27,10 @@ void VC4Subtarget::anchor() { }
 
 VC4Subtarget::VC4Subtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const TargetMachine &TM)
-  : VC4GenSubtargetInfo(TT, CPU, FS), InstrInfo(), FrameLowering(*this)
+  : VC4GenSubtargetInfo(TT, CPU, FS)
   , VC4ArchVersion(VC4Default)
+  , InstrInfo()
+  , FrameLowering(*this)
   , TLInfo(TM, *this)
   , TSInfo() {
 

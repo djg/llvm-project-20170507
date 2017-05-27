@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "VC4.h"
 #include "InstPrinter/VC4InstPrinter.h"
+#include "VC4.h"
 #include "VC4InstrInfo.h"
-//#include "VC4MCInstLower.h"
+#include "VC4MCInstLower.h"
 #include "VC4Subtarget.h"
 #include "VC4TargetMachine.h"
 #include "llvm/ADT/SmallString.h"
@@ -48,40 +48,44 @@ using namespace llvm;
 #define DEBUG_TYPE "asm-printer"
 
 namespace {
-  class VC4AsmPrinter : public AsmPrinter {
-  public:
-    explicit VC4AsmPrinter(TargetMachine &TM,
-                           std::unique_ptr<MCStreamer> Streamer)
-      : AsmPrinter(TM, std::move(Streamer)) {}
+class VC4AsmPrinter : public AsmPrinter {
+  VC4MCInstLower MCInstLowering;
 
-    StringRef getPassName() const override { return "VC4 Assembly Printer"; }
+public:
+  explicit VC4AsmPrinter(TargetMachine &TM,
+                         std::unique_ptr<MCStreamer> Streamer)
+      : AsmPrinter(TM, std::move(Streamer)), MCInstLowering(*this) {}
 
-/*
-    void printInlineJT(const MachineInstr *MI, int opNum, raw_ostream &O,
-                       const std::string &directive = ".jmptable");
-    void printInlineJT32(const MachineInstr *MI, int opNum, raw_ostream &O) {
-      printInlineJT(MI, opNum, O, ".jmptable32");
-    }
-*/
-    void printOperand(const MachineInstr *MI, int opNum, raw_ostream &O);
-/*
-    bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
-                         unsigned AsmVariant, const char *ExtraCode,
-                         raw_ostream &O) override;
-    bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
-                               unsigned AsmVariant, const char *ExtraCode,
-                               raw_ostream &O) override;
+  StringRef getPassName() const override { return "VC4 Assembly Printer"; }
 
-    void emitArrayBound(MCSymbol *Sym, const GlobalVariable *GV);
-    void EmitGlobalVariable(const GlobalVariable *GV) override;
+  /*
+      void printInlineJT(const MachineInstr *MI, int opNum, raw_ostream &O,
+                         const std::string &directive = ".jmptable");
+      void printInlineJT32(const MachineInstr *MI, int opNum, raw_ostream &O) {
+        printInlineJT(MI, opNum, O, ".jmptable32");
+      }
+  */
+  void printOperand(const MachineInstr *MI, int opNum, raw_ostream &O);
+  /*
+      bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
+                           unsigned AsmVariant, const char *ExtraCode,
+                           raw_ostream &O) override;
+      bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
+                                 unsigned AsmVariant, const char *ExtraCode,
+                                 raw_ostream &O) override;
 
-    void EmitFunctionEntryLabel() override;
-    void EmitInstruction(const MachineInstr *MI) override;
-    void EmitFunctionBodyStart() override;
-    void EmitFunctionBodyEnd() override;
-*/
-  };
-} // end of anonymous namespace
+      void emitArrayBound(MCSymbol *Sym, const GlobalVariable *GV);
+      void EmitGlobalVariable(const GlobalVariable *GV) override;
+
+      void EmitFunctionEntryLabel() override;
+  */
+  void EmitInstruction(const MachineInstr *MI) override;
+  /*
+      void EmitFunctionBodyStart() override;
+      void EmitFunctionBodyEnd() override;
+  */
+};
+} // namespace
 
 /*
 void
@@ -200,7 +204,7 @@ printInlineJT(const MachineInstr *MI, int opNum, raw_ostream &O,
 }
 */
 void VC4AsmPrinter::printOperand(const MachineInstr *MI, int opNum,
-                                   raw_ostream &O) {
+                                 raw_ostream &O) {
   const DataLayout &DL = getDataLayout();
   const MachineOperand &MO = MI->getOperand(opNum);
   switch (MO.getType()) {
@@ -261,42 +265,12 @@ PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
 }
 */
 
-/*
 void VC4AsmPrinter::EmitInstruction(const MachineInstr *MI) {
-  SmallString<128> Str;
-  raw_svector_ostream O(Str);
-
-  switch (MI->getOpcode()) {
-  case VC4::DBG_VALUE:
-    llvm_unreachable("Should be handled target independently");
-  case VC4::ADD_2rus:
-    if (MI->getOperand(2).getImm() == 0) {
-      O << "\tmov "
-        << VC4InstPrinter::getRegisterName(MI->getOperand(0).getReg()) << ", "
-        << VC4InstPrinter::getRegisterName(MI->getOperand(1).getReg());
-      OutStreamer->EmitRawText(O.str());
-      return;
-    }
-    break;
-  case VC4::BR_JT:
-  case VC4::BR_JT32:
-    O << "\tbru "
-      << VC4InstPrinter::getRegisterName(MI->getOperand(1).getReg()) << '\n';
-    if (MI->getOpcode() == VC4::BR_JT)
-      printInlineJT(MI, 0, O);
-    else
-      printInlineJT32(MI, 0, O);
-    O << '\n';
-    OutStreamer->EmitRawText(O.str());
-    return;
-  }
-
   MCInst TmpInst;
   MCInstLowering.Lower(MI, TmpInst);
 
   EmitToStreamer(*OutStreamer, TmpInst);
 }
-*/
 
 // Force static initialization.
 extern "C" void LLVMInitializeVC4AsmPrinter() {
