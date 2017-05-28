@@ -44,12 +44,14 @@ const char *VC4TargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (Opcode) {
   default:
     return NULL;
-  case VC4ISD::RET_FLAG:
-    return "RET_FLAG";
-  case VC4ISD::LOAD_SYM:
-    return "LOAD_SYM";
   case VC4ISD::CALL:
     return "CALL";
+  case VC4ISD::LOAD_SYM:
+    return "LOAD_SYM";
+  case VC4ISD::MOVE_I32:
+    return "MOVE_I32";
+  case VC4ISD::RET_FLAG:
+    return "RET_FLAG";
   }
 }
 

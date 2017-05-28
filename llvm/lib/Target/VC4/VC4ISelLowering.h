@@ -29,9 +29,10 @@ namespace VC4ISD {
   enum NodeType  {
     // Start the numbering where the builtin ops and target ops leave off.
     FIRST_NUMBER = ISD::BUILTIN_OP_END,
-    RET_FLAG,
-    LOAD_SYM,
     CALL,
+    LOAD_SYM,
+    MOVE_I32,
+    RET_FLAG,
   };
 }
 
