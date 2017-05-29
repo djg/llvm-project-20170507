@@ -44,7 +44,7 @@ def S5ImmOp : Operand<i32> {
 // Address operand
 def mem : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops CRegs, s16imm);
+  let MIOperandInfo = (ops GPRegs, s16imm);
   let EncoderMethod = "getMemEncoding";
 }
 
@@ -67,7 +67,7 @@ def CBADD3 : S16_0<0b1001, "cdadd3", []>;
 def RTI    : S16_0<0b1010, "rti", []>;
 
 // Software Interrupt - Raise 0x20+(rd & 0x1f)
-def SWIrd : S16_rd5_1<(outs), (ins ERegs:$rd), 0b001, "swi $rd", []>;
+def SWIrd : S16_rd5_1<(outs), (ins ExRegs:$rd), 0b001, "swi $rd", []>;
 def SWIu  : S16_swi<(outs), (ins U6ImmOp:$u), "swi $u", []>;
 */
 
@@ -75,7 +75,7 @@ def SWIu  : S16_swi<(outs), (ins U6ImmOp:$u), "swi $u", []>;
 //todo:-)
 
 // Version
-//def VERSION : S16_rd5_1<(outs ERegs:$rd), (ins), 0b111, "version $rd", []>;
+//def VERSION : S16_rd5_1<(outs ExRegs:$rd), (ins), 0b111, "version $rd", []>;
 
 //===----------------------------------------------------------------------===//
 // ALU Instructions
@@ -94,14 +94,14 @@ class _S16ALU1r4imm5<VC4ALUOp opc, dag outs, dag ins, string asm, list<dag> patt
 }
 
 class S16ALU2r4<VC4ALUOp opc, string mnemonic, SDNode OpCode>
-    : _S16ALU2r4<opc, (outs CRegs:$rd), (ins CRegs:$rdi, CRegs:$rs),
+    : _S16ALU2r4<opc, (outs GPRegs:$rd), (ins GPRegs:$rdi, GPRegs:$rs),
                  !strconcat(mnemonic, " $rd, $rs"),
-                 [(set CRegs:$rd, (OpCode CRegs:$rdi, CRegs:$rs))]>;
+                 [(set GPRegs:$rd, (OpCode GPRegs:$rdi, GPRegs:$rs))]>;
 
 multiclass S16ALU1r4i_2r4<VC4ALUOp opc, string mnemonic, SDNode OpCode> {
-  def _1ri: _S16ALU1r4imm5<opc, (outs CRegs:$rd), (ins CRegs:$rdi, i32imm:$imm),
+  def _1ri: _S16ALU1r4imm5<opc, (outs GPRegs:$rd), (ins GPRegs:$rdi, i32imm:$imm),
                          !strconcat(mnemonic, " $rd, $imm"),
-                         [(set CRegs:$rd, (OpCode CRegs:$rdi, uimm5:$imm))]>;
+                         [(set GPRegs:$rd, (OpCode GPRegs:$rdi, uimm5:$imm))]>;
   def _2r: S16ALU2r4<opc, mnemonic, OpCode>;
 }
 
@@ -126,19 +126,19 @@ def  OR: S16ALU2r4<VC4ALU_or, "or", or>;
 // 0 - BITSET
 // 1 - MIN
 // 0 - BITCLEAR
-def ADDSCALE2: _S16ALU2r4<VC4ALU_addscale2, (outs CRegs:$rd), (ins CRegs:$rdi, CRegs:$rs),
+def ADDSCALE2: _S16ALU2r4<VC4ALU_addscale2, (outs GPRegs:$rd), (ins GPRegs:$rdi, GPRegs:$rs),
                           "addscale $rd, $rs << 1",
-                          [(set CRegs:$rd, (add CRegs:$rdi, (shl CRegs:$rs, 1)))]>;
+                          [(set GPRegs:$rd, (add GPRegs:$rdi, (shl GPRegs:$rs, 1)))]>;
 // 0 - BITFLIP
-def ADDSCALE4: _S16ALU2r4<VC4ALU_addscale4, (outs CRegs:$rd), (ins CRegs:$rdi, CRegs:$rs),
+def ADDSCALE4: _S16ALU2r4<VC4ALU_addscale4, (outs GPRegs:$rd), (ins GPRegs:$rdi, GPRegs:$rs),
                           "addscale $rd, $rs << 2",
-                          [(set CRegs:$rd, (add CRegs:$rdi, (shl CRegs:$rs, 2)))]>;
-def ADDSCALE8: _S16ALU2r4<VC4ALU_addscale8, (outs CRegs:$rd), (ins CRegs:$rdi, CRegs:$rs),
+                          [(set GPRegs:$rd, (add GPRegs:$rdi, (shl GPRegs:$rs, 2)))]>;
+def ADDSCALE8: _S16ALU2r4<VC4ALU_addscale8, (outs GPRegs:$rd), (ins GPRegs:$rdi, GPRegs:$rs),
                           "addscale $rd, $rs << 3",
-                          [(set CRegs:$rd, (add CRegs:$rdi, (shl CRegs:$rs, 3)))]>;
-def ADDSCALE16: _S16ALU2r4<VC4ALU_addscale16, (outs CRegs:$rd), (ins CRegs:$rdi, CRegs:$rs),
+                          [(set GPRegs:$rd, (add GPRegs:$rdi, (shl GPRegs:$rs, 3)))]>;
+def ADDSCALE16: _S16ALU2r4<VC4ALU_addscale16, (outs GPRegs:$rd), (ins GPRegs:$rdi, GPRegs:$rs),
                           "addscale $rd, $rs << 4",
-                          [(set CRegs:$rd, (add CRegs:$rdi, (shl CRegs:$rs, 4)))]>;
+                          [(set GPRegs:$rd, (add GPRegs:$rdi, (shl GPRegs:$rs, 4)))]>;
 // 0 - SIGNEXT
 // 1 - NEG
 defm LSR: S16ALU1r4i_2r4<VC4ALU_lsr, "lsr", srl>;
@@ -150,17 +150,69 @@ defm ASR: S16ALU1r4i_2r4<VC4ALU_asr, "asr", sra>;
 }
 
 //===----------------------------------------------------------------------===*/
+// AddCmpBCC Instructions
+//===----------------------------------------------------------------------===*/
+
+class S32_addcmpbcc_0<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : S32_addcmpbcc<cc, outs, ins, asmstr, pattern> {
+  bits<4>  ra;
+  bits<4>  rs;
+  bits<10> off;
+
+  let Inst{23-20} = ra;
+  let Inst{15-14} = 0b00;
+  let Inst{13-10} = rs;
+  let Inst{9-0}   = off;
+}
+
+class S32_addcmpbcc_1<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : S32_addcmpbcc<cc, outs, ins, asmstr, pattern> {
+  bits<4>  imm;
+  bits<4>  rs;
+  bits<10> off;
+
+  let Inst{23-20} = imm;
+  let Inst{15-14} = 0b01;
+  let Inst{13-10} = rs;
+  let Inst{9-0}   = off;
+}
+
+class S32_addcmpbcc_2<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : S32_addcmpbcc<cc, outs, ins, asmstr, pattern> {
+  bits<4> ra;
+  bits<6> u;
+  bits<8> off;
+
+  let Inst{23-20} = ra;
+  let Inst{15-14} = 0b10;
+  let Inst{13-8}  = u;
+  let Inst{7-0}   = off;
+}
+
+class S32_addcmpbcc_3<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : S32_addcmpbcc<cc, outs, ins, asmstr, pattern> {
+  bits<4> imm;
+  bits<6> u;
+  bits<8> off;
+
+  let Inst{23-20} = imm;
+  let Inst{15-14} = 0b11;
+  let Inst{13-8}  = u;
+  let Inst{7-0}   = off;
+}
+
+//===----------------------------------------------------------------------===*/
 // Branch Instructions
 //===----------------------------------------------------------------------===*/
 
 // Unconditional branch
 let isBranch = 1, isIndirectBranch=1, isTerminator=1, isBarrier=1 in
-def B : S16_1r5<(outs), (ins ERegs:$rd), "b $rd", []> {
+def B : S16_1r5<(outs), (ins ExRegs:$rd), "b $rd", []> {
   let Inst{14-5} = 0b0000000010;
 }
 
 let isCall=1, Defs = [R0, R1, R2, R3, R4, R5, LR] in
-def BL : S16_1r5<(outs), (ins ERegs:$rd), "bl $rd", []> {
+def BL : S16_1r5<(outs), (ins ExRegs:$rd), "bl $rd", []> {
   let Inst{14-5} = 0b0000000011;
 }
 

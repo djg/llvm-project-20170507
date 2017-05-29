@@ -59,7 +59,7 @@ VC4TargetLowering::VC4TargetLowering(const TargetMachine &TM,
                                      const VC4Subtarget &SubTarget)
     : TargetLowering(TM), Subtarget(SubTarget) {
   // Set up the register class
-  addRegisterClass(MVT::i32, &VC4::CRegsRegClass);
+  addRegisterClass(MVT::i32, &VC4::GPRegsRegClass);
 
   // Compute derived properties from the register classes
   computeRegisterProperties(Subtarget.getRegisterInfo());
@@ -122,7 +122,7 @@ SDValue VC4TargetLowering::LowerFormalArguments(
       EVT RegVT = VA.getLocVT();
       assert(RegVT.getSimpleVT().SimpleTy == MVT::i32 &&
              "Only support MVT::i32 register passing");
-      const unsigned VReg = RegInfo.createVirtualRegister(&VC4::CRegsRegClass);
+      const unsigned VReg = RegInfo.createVirtualRegister(&VC4::GPRegsRegClass);
       RegInfo.addLiveIn(VA.getLocReg(), VReg);
       SDValue ArgIn = DAG.getCopyFromReg(Chain, dl, VReg, RegVT);
 

@@ -22,11 +22,11 @@ class Ri<bits<5> num, string n> : VC4ScalarReg<n> {
 //  Registers
 //===----------------------------------------------------------------------===//
 
-// Core scalar registers:
+// General purpose scalar registers:
 foreach I = 0-15 in
 def R#I : Ri<I, "r"#I>, DwarfRegNum<[I]>;
 
-// Extended Scalar registers
+// Extended scalar registers
 foreach I = 16-23 in
 def R#I : Ri<I, "r"#I>, DwarfRegNum<[I]>;
 
@@ -47,14 +47,14 @@ def P#I : Ri<I, "p"#I>, DwarfRegNum<[!add(I, 32)]>;
 //===----------------------------------------------------------------------===//
 
 // Core registers
-def CRegs : RegisterClass<"VC4", [i32, f32], 32,
+def GPRegs : RegisterClass<"VC4", [i32, f32], 32,
   // Return values and arguments
   (add R0, R1, R2, R3, R4, R5,
   // Callee save
   R6, R7, R8, R9, R10, R11, R14, R15)>;
 
 // Extended allocatable registers
-def ERegs : RegisterClass<"VC4", [i32, f32], 32,
+def ExRegs : RegisterClass<"VC4", [i32, f32], 32,
   (add R0, R1, R2, R3, R4, R5,
    R6, R7, R8, R9, R10, R11, R14, R15,
    // Extended

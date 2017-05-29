@@ -123,7 +123,9 @@ class VC4PseudoInst<dag outs, dag ins, string asmstr, list<dag> pattern>
 
 // Instruction formats
 
+//===----------------------------------------------------------------------===//
 // Instruction meta-classes
+//===----------------------------------------------------------------------===//
 
 class VC4Scalar16<dag outs, dag ins, string asmstr, list<dag> pattern>
     : VC4Inst<2, outs, ins, asmstr, pattern> {
@@ -132,15 +134,17 @@ class VC4Scalar16<dag outs, dag ins, string asmstr, list<dag> pattern>
 
 class VC4Scalar32<dag outs, dag ins, string asmstr, list<dag> pattern>
     : VC4Inst<4, outs, ins, asmstr, pattern> {
-  let Inst{15} = 1;
+  let Inst{31} = 1;
 }
 
 class VC4Scalar48<dag outs, dag ins, string asmstr, list<dag> pattern>
     : VC4Inst<6, outs, ins, asmstr, pattern> {
-  let Inst{15-12} = 0b1110;
+  let Inst{47-44} = 0b1110;
 }
 
-// 16 bit instructions
+//===----------------------------------------------------------------------===//
+// 16-bit Scalar Instructions
+//===----------------------------------------------------------------------===//
 
 class S16_1r4<dag outs, dag ins, string asmstr, list<dag> pattern>
     : VC4Scalar16<outs, ins, asmstr, pattern> {
@@ -194,3 +198,72 @@ class S16_bcc<bits<4> cc, dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{10-7} = cc;
   let Inst{6-0} = o;
 }
+
+//===----------------------------------------------------------------------===//
+// 32-bit Scalar Instructions
+//===----------------------------------------------------------------------===//
+class S32_addcmpbcc<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Scalar32<outs, ins, asmstr, pattern> {
+  bits<4> rd;
+
+  let Inst{30-28} = 0b000;
+  let Inst{27-24} = cc.Value;
+  let Inst{19-16} = rd;
+}
+
+class S32_1r5imm16<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Scalar32<outs, ins, asmstr, pattern> {
+  bits<5>  rd;
+  bits<16> imm;
+
+  let Inst{20-16} = rd;
+  let Inst{15-0} = imm;
+}
+
+class S32_1r5off16<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Scalar32<outs, ins, asmstr, pattern> {
+  bits<5> rd;
+  bits<16> off;
+
+  let Inst{20-16} = rd;
+  let Inst{15-0} = off;
+}
+
+class S32_2r5imm16<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : S32_1r5imm16<outs, ins, asmstr, pattern> {
+  bits<5> rs;
+
+  let Inst{25-21} = rs;
+}
+
+// 1100 0ooo oood dddd aaaa accc c1ii iiii
+class S32_cc2r5imm6<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Scalar32<outs, ins, asmstr, pattern> {
+  bits<5> rd;
+  bits<5> ra;
+  bits<6> imm;
+
+  let Inst{20-16} = rd;
+  let Inst{15-11} = ra;
+  let Inst{10-7}  = cc.Value;
+  let Inst{6}     = 0b1;
+  let Inst{5-0}   = imm;
+}
+
+// 1100 0ooo oood dddd aaaa accc c00b bbbb
+class S32_cc3r5<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Scalar32<outs, ins, asmstr, pattern> {
+  bits<5> rd;
+  bits<5> ra;
+  bits<5> rb;
+
+  let Inst{20-16} = rd;
+  let Inst{15-11} = ra;
+  let Inst{10-7}  = cc.Value;
+  let Inst{6-5}   = 0b00;
+  let Inst{4-0}   = rb;
+}
+
+//===----------------------------------------------------------------------===//
+// 48-bit Scalar Instructions
+//===----------------------------------------------------------------------===//
