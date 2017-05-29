@@ -158,6 +158,8 @@ class S16_1r4imm5<dag outs, dag ins, string asmstr, list<dag> pattern>
   bits<5> imm;
 
   let Inst{8-4} = imm;
+
+  let DecoderMetho
 }
 
 class S16_1r5<dag outs, dag ins, string asmstr, list<dag> pattern>
@@ -197,6 +199,8 @@ class S16_bcc<bits<4> cc, dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{14-11} = 0b0011;
   let Inst{10-7} = cc;
   let Inst{6-0} = o;
+
+  let DecoderMethod = "DecodeBccInstruction";
 }
 
 //===----------------------------------------------------------------------===//
@@ -248,6 +252,8 @@ class S32_cc2r5imm6<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> 
   let Inst{10-7}  = cc.Value;
   let Inst{6}     = 0b1;
   let Inst{5-0}   = imm;
+
+  let DecoderMethod = "DecodeCC2R5Imm6Instruction";
 }
 
 // 1100 0ooo oood dddd aaaa accc c00b bbbb
@@ -262,6 +268,8 @@ class S32_cc3r5<VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> patt
   let Inst{10-7}  = cc.Value;
   let Inst{6-5}   = 0b00;
   let Inst{4-0}   = rb;
+
+  let DecoderMethod = "DecodeCC3R5Instruction";
 }
 
 //===----------------------------------------------------------------------===//
