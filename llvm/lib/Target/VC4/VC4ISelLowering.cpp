@@ -44,12 +44,18 @@ const char *VC4TargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (Opcode) {
   default:
     return NULL;
+  case VC4ISD::PC_RELATIVE:
+    return "PC_RELATIVE";
+  case VC4ISD::SP_RELATIVE:
+    return "SP_RELATIVE";
+  case VC4ISD::GP_RELATIVE:
+    return "GP_RELATIVE";
+  case VC4ISD::R0_RELATIVE:
+    return "R0_RELATIVE";
   case VC4ISD::CALL:
     return "CALL";
-  case VC4ISD::LOAD_SYM:
-    return "LOAD_SYM";
-  case VC4ISD::MOVE_I32:
-    return "MOVE_I32";
+  case VC4ISD::CALL_NOLINK:
+    return "CALL_NOLINK";
   case VC4ISD::RET_FLAG:
     return "RET_FLAG";
   }
@@ -59,7 +65,7 @@ VC4TargetLowering::VC4TargetLowering(const TargetMachine &TM,
                                      const VC4Subtarget &SubTarget)
     : TargetLowering(TM), Subtarget(SubTarget) {
   // Set up the register class
-  addRegisterClass(MVT::i32, &VC4::GPRegsRegClass);
+  addRegisterClass(MVT::i32, &VC4::GRegsRegClass);
 
   // Compute derived properties from the register classes
   computeRegisterProperties(Subtarget.getRegisterInfo());
@@ -83,11 +89,14 @@ SDValue VC4TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
 
 SDValue VC4TargetLowering::LowerGlobalAddress(SDValue Op,
                                               SelectionDAG &DAG) const {
+/*
   EVT VT = Op.getValueType();
   GlobalAddressSDNode *GlobalAddr = cast<GlobalAddressSDNode>(Op.getNode());
   SDValue TargetAddr =
       DAG.getTargetGlobalAddress(GlobalAddr->getGlobal(), Op, MVT::i32);
   return DAG.getNode(VC4ISD::LOAD_SYM, Op, VT, TargetAddr);
+*/
+  return Op;
 }
 
 //===----------------------------------------------------------------------===//
@@ -122,7 +131,7 @@ SDValue VC4TargetLowering::LowerFormalArguments(
       EVT RegVT = VA.getLocVT();
       assert(RegVT.getSimpleVT().SimpleTy == MVT::i32 &&
              "Only support MVT::i32 register passing");
-      const unsigned VReg = RegInfo.createVirtualRegister(&VC4::GPRegsRegClass);
+      const unsigned VReg = RegInfo.createVirtualRegister(&VC4::GRegsRegClass);
       RegInfo.addLiveIn(VA.getLocReg(), VReg);
       SDValue ArgIn = DAG.getCopyFromReg(Chain, dl, VReg, RegVT);
 

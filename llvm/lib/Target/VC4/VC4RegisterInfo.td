@@ -46,15 +46,15 @@ def P#I : Ri<I, "p"#I>, DwarfRegNum<[!add(I, 32)]>;
 //  Register Classes
 //===----------------------------------------------------------------------===//
 
-// Core registers
-def GPRegs : RegisterClass<"VC4", [i32, f32], 32,
+// General purpose registers
+def GRegs : RegisterClass<"VC4", [i32, f32], 32,
   // Return values and arguments
   (add R0, R1, R2, R3, R4, R5,
   // Callee save
   R6, R7, R8, R9, R10, R11, R14, R15)>;
 
 // Extended allocatable registers
-def ExRegs : RegisterClass<"VC4", [i32, f32], 32,
+def ERegs : RegisterClass<"VC4", [i32, f32], 32,
   (add R0, R1, R2, R3, R4, R5,
    R6, R7, R8, R9, R10, R11, R14, R15,
    // Extended

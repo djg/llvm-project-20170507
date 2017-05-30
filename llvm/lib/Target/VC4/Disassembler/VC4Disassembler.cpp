@@ -61,8 +61,8 @@ static bool readInstruction48(ArrayRef<uint8_t> Bytes, uint64_t Address,
   }
   // Encoded as a little-endian 16-bit word followed by little-endian 32-bit
   // word in the stream.
-  Insn = 
-    ((uint64_t) Bytes[0] << 32) | ((uint64_t) Bytes[1] << 40) | 
+  Insn =
+    ((uint64_t) Bytes[0] << 32) | ((uint64_t) Bytes[1] << 40) |
     (Bytes[2] << 0) | (Bytes[3] << 8) | (Bytes[4] << 16) | (Bytes[5] << 24);
   return true;
 }
@@ -73,32 +73,30 @@ static unsigned getReg(const void *D, unsigned RC, unsigned RegNo) {
   return *(RegInfo->getRegClass(RC).begin() + RegNo);
 }
 
-static DecodeStatus DecodeGPRegsRegisterClass(MCInst &Inst, unsigned RegNo,
+static DecodeStatus DecodeGRegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
                                               const void *Decoder);
 
-static DecodeStatus DecodeExRegsRegisterClass(MCInst &Inst, unsigned RegNo,
+static DecodeStatus DecodeERegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
                                               const void *Decoder);
 
-#include "VC4GenDisassemblerTables.inc"
-
-static DecodeStatus DecodeGPRegsRegisterClass(MCInst &Inst, unsigned RegNo,
+static DecodeStatus DecodeGRegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
                                               const void *Decoder) {
   if (RegNo > 15)
     return MCDisassembler::Fail;
-  unsigned Reg = getReg(Decoder, VC4::GPRegsRegClassID, RegNo);
+  unsigned Reg = getReg(Decoder, VC4::GRegsRegClassID, RegNo);
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
 
-static DecodeStatus DecodeExRegsRegisterClass(MCInst &Inst, unsigned RegNo,
+static DecodeStatus DecodeERegsRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
                                               const void *Decoder) {
   if (RegNo > 23)
     return MCDisassembler::Fail;
-  unsigned Reg = getReg(Decoder, VC4::ExRegsRegClassID, RegNo);
+  unsigned Reg = getReg(Decoder, VC4::ERegsRegClassID, RegNo);
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
@@ -111,48 +109,6 @@ VC4Disassembler::getInstruction(
 
   if (!readInstruction16(Bytes, Address, Size, insn16))
     return Fail;
-
-  if ((insn16 & 0x8000) == 0) {
-    // Scalar16 instruction
-    DecodeStatus Result = decodeInstruction(DecoderTable16, instr, insn16,
-                                            Address, this, STI);
-    if (Result != Fail) {
-      Size = 2;
-      return Result;
-    }
-  } else {
-    uint16_t insn_size = (insn16 & 0xF000);
-    if (insn_size == 0xF000) {
-      // Vector insn
-      return Fail;
-    } else if (insn_size == 0xE000) {
-      // Scalar48
-      uint64_t insn48;
-
-      if (!readInstruction48(Bytes, Address, Size, insn48))
-        return Fail;
-
-      DecodeStatus Result = decodeInstruction(DecoderTable48, instr, insn48,
-                                              Address, this, STI);
-      if (Result != Fail) {
-        Size = 6;
-        return Result;
-      }
-    } else {
-      // Scalar32
-      uint32_t insn32;
-
-      if (!readInstruction32(Bytes, Address, Size, insn32))
-        return Fail;
-
-      DecodeStatus Result = decodeInstruction(DecoderTable32, instr, insn32,
-                                              Address, this, STI);
-      if (Result != Fail) {
-        Size = 4;
-        return Result;
-      }
-    }
-  }
 
   return Fail;
 }

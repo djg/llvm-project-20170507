@@ -29,9 +29,14 @@ namespace VC4ISD {
   enum NodeType  {
     // Start the numbering where the builtin ops and target ops leave off.
     FIRST_NUMBER = ISD::BUILTIN_OP_END,
-    CALL,
-    LOAD_SYM,
-    MOVE_I32,
+    // PC Relative
+    PC_RELATIVE,
+    SP_RELATIVE,
+    GP_RELATIVE,
+    R0_RELATIVE,
+
+    CALL,         // Branch and Link (call)
+    CALL_NOLINK,  // Function all with branch not branch-and-link.
     RET_FLAG,
   };
 }
