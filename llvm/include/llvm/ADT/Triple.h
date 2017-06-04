@@ -94,8 +94,8 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
-    vc4,            // VideoCore-IV
-    LastArchType = vc4
+    videocore3,     // Broadcom VideoCore III
+    LastArchType = videocore3
   };
   enum SubArchType {
     NoSubArch,

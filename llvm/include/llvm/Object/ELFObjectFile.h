@@ -924,6 +924,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "ELF32-wasm";
     case ELF::EM_AMDGPU:
       return "ELF32-amdgpu";
+    case ELF::EM_VIDEOCORE3:
+      return "ELF32-videocore3";
     default:
       return "ELF32-unknown";
     }
@@ -1026,6 +1028,9 @@ unsigned ELFObjectFile<ELFT>::getArch() const {
 
   case ELF::EM_BPF:
     return IsLittleEndian ? Triple::bpfel : Triple::bpfeb;
+
+  case ELF::EM_VIDEOCORE3:
+    return Triple::videocore3;
 
   default:
     return Triple::UnknownArch;

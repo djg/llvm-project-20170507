@@ -69,7 +69,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case wasm64:         return "wasm64";
   case renderscript32: return "renderscript32";
   case renderscript64: return "renderscript64";
-  case vc4:            return "vc4";
+  case videocore3:     return "vc3";
   }
 
   llvm_unreachable("Invalid ArchType!");
@@ -142,7 +142,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case riscv32:
   case riscv64:     return "riscv";
 
-  case vc4:         return "vc4";
+  case videocore3:  return "vc3";
   }
 }
 
@@ -301,7 +301,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("wasm64", wasm64)
     .Case("renderscript32", renderscript32)
     .Case("renderscript64", renderscript64)
-    .Case("vc4", vc4)
+    .Case("vc3", videocore3)
     .Default(UnknownArch);
 }
 
@@ -416,7 +416,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("wasm64", Triple::wasm64)
     .Case("renderscript32", Triple::renderscript32)
     .Case("renderscript64", Triple::renderscript64)
-    .Case("vc4", Triple::vc4)
+    .Cases("videocore3", "videocore4", "vc3", "vc4", Triple::videocore3)
     .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -642,7 +642,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::tce:
   case Triple::tcele:
   case Triple::thumbeb:
-  case Triple::vc4:
+  case Triple::videocore3:
   case Triple::wasm32:
   case Triple::wasm64:
   case Triple::xcore:
@@ -1178,7 +1178,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::shave:
   case llvm::Triple::wasm32:
   case llvm::Triple::renderscript32:
-  case llvm::Triple::vc4:
+  case llvm::Triple::videocore3:
     return 32;
 
   case llvm::Triple::aarch64:
@@ -1258,7 +1258,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::shave:
   case Triple::wasm32:
   case Triple::renderscript32:
-  case Triple::vc4:
+  case Triple::videocore3:
     // Already 32-bit.
     break;
 
@@ -1296,7 +1296,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::xcore:
   case Triple::sparcel:
   case Triple::shave:
-  case Triple::vc4:
+  case Triple::videocore3:
     T.setArch(UnknownArch);
     break;
 

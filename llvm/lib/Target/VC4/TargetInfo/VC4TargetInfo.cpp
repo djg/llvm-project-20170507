@@ -13,5 +13,6 @@ llvm::getTheVC4Target() {
 
 extern "C"
 void LLVMInitializeVC4TargetInfo() {
-  RegisterTarget<Triple::vc4, /*HasJIT=*/false> X(getTheVC4Target(), "vc4", "VideoCore IV");
+  // Broadcom VideoCore III matches the description returned by readelf
+  RegisterTarget<Triple::videocore3, /*HasJIT=*/false> X(getTheVC4Target(), "vc3", "Broadcom VideoCore III");
 }
