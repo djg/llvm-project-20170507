@@ -13,6 +13,9 @@ include "VC4Operators.td"
 // Operands, Complex Patterns and Transformations Definitions.
 //===----------------------------------------------------------------------===//
 
+class BinOpFrag<dag res> : PatFrag<(ops node:$LHS, node:$RHS), res>;
+class UnOpFrag<dag res> : PatFrag<(ops node:$LHS), res>;
+
 def div2 : SDNodeXForm<imm, [{
   // Transform: imm/2
   assert(N->getSExtValue() % 2 == 0);
@@ -25,10 +28,31 @@ def div4 : SDNodeXForm<imm, [{
   return getI32Imm(N->getSExtValue()/4, SDLoc(N));
 }]>;
 
+def bit_xform : SDNodeXForm<imm, [{
+  assert(isPowerOf2_32(N->getZExtValue()) != -1);
+  return getI32Imm(Log2_32(N->getZExtValue()), SDLoc(N));
+}]>;
+
 // Instruction operand types
-def immSExt5  : Operand<i32>, ImmLeaf<i32, [{ return isInt<5>(Imm); }]>;
-def immSExt16 : Operand<i32>, ImmLeaf<i32, [{ return isInt<16>(Imm); }]>;
-def immSExt32 : Operand<i32>, ImmLeaf<i32, [{ return isInt<32>(Imm); }]>;
+def immSExt5    : Operand<i32>, ImmLeaf<i32, [{ return isInt<5>(Imm); }]>;
+def immSExt5x4  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<5,2>(Imm); }], div4>;
+def immSExt6x4  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<6,2>(Imm); }], div4>;
+def immSExt7x2  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<7,1>(Imm); }], div2>;
+def immSExt8x2  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<8,1>(Imm); }], div2>;
+def immSExt10x2 : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<10,1>(Imm); }], div2>;
+def immSExt16   : Operand<i32>, ImmLeaf<i32, [{ return isInt<16>(Imm); }]>;
+def immSExt23x2 : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<23,1>(Imm); }], div2>;
+def immSExt27   : Operand<i32>, ImmLeaf<i32, [{ return isInt<27>(Imm); }]>;
+def immSExt27x2 : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<27,1>(Imm); }], div2>;
+def immSExt32   : Operand<i32>, ImmLeaf<i32, [{ return isInt<32>(Imm); }]>;
+
+def immZExt4  : Operand<i32>, ImmLeaf<i32, [{ return isUInt<4>(Imm); }]>;
+def immZExt5  : Operand<i32>, ImmLeaf<i32, [{ return isUInt<5>(Imm); }]>;
+def immZExt6  : Operand<i32>, ImmLeaf<i32, [{ return isUInt<6>(Imm); }]>;
+def immZExt16 : Operand<i16>, ImmLeaf<i16, [{ return isUInt<16>(Imm); }]>;
+def immZext32 : Operand<i32>, ImmLeaf<i32, [{ return isUInt<32>(Imm); }]>;
+
+def immBit : Operand<i32>, ImmLeaf<i32, [{ return Imm != 0 && isPowerOf2_32(Imm); }], bit_xform>;
 
 // Address operand
 def mem : Operand<iPTR> {
@@ -96,43 +120,100 @@ def RTI    : RTI_ENC, RTI_DESC;
 
 // Software Interrupt - Raise 0x20+(rd & 0x1f)
 defm SWI : _SWI;
+*/
+
+class SWITCH_DESC<string instr_asm> {
+  dag InOperandList = (ins GRegs:$rd);
+  string AsmString = instr_asm # "\t$rd";
+  string BaseOpcode = instr_asm;
+}
+
+class SWITCH_ENC<bit w> : S16_1r4_FMT {
+  let Inst{14-6} = 0b000000010;
+  let Inst{5} = w;
+  let Inst{4} = 0b0;
+}
 
 // Table branch byte.  pc = pc + 2*(*(s8 *)(pc+rd))
 // 0000 0000 1000 dddd
-def SWITCHB : S16_1r4<(outs), (ins), "switch.b $rd", []>;
+def SWITCHB : SWITCH_ENC<0>, SWITCH_DESC<"switch.b">;
 
 // Table branch short. pc = pc + 2*(*(s16 *)(pc+rd))
 // 0000 0000 1010 dddd
-def SWITCH : S16_1r4<(outs), (ins), "switch $rd", []>;
+def SWITCH : SWITCH_ENC<1>, SWITCH_DESC<"switch">;
 
 // Version - Get cpu version and core number.
+class VERSION_DESC {
+  dag OutOperandList = (outs ERegs:$rd);
+  string AsmString = "version\t$rd";
+  string BaseOpcode = "version";
+}
+
 // 0000 0000 111d dddd
-def VERSION : S16_1r5<(outs ExRegs:$rd), (ins), "version $rd", []> { let Inst{14-5} = 0b0000000111; }
-*/
+class VERSION_ENC : S16_1r5_FMT {
+  let Inst{14-5} = 0b0000000111;
+}
+
+def VERSION : VERSION_ENC, VERSION_DESC;
 
 //===----------------------------------------------------------------------===//
 // ALU Instructions
 //===----------------------------------------------------------------------===//
 
-class ALU_RI_DESC<string instr_asm, SDPatternOperator OpNode,
-             SDPatternOperator ImmPat, RegisterClass RC,
-             Operand ImmOpnd> {
+class ALU_BASE_DESC<dag ins, string asmstr, RegisterClass RC> {
   dag OutOperandList = (outs RC:$rd);
-  dag InOperandList =  (ins RC:$_rd, ImmOpnd:$imm);
-  string AsmString = instr_asm # "\t$rd, $imm";
+  dag InOperandList = ins;
+  string AsmString = asmstr;
+}
+
+class ALU_RI_DESC<string instr_asm, SDPatternOperator OpNode,
+                  SDPatternOperator ImmPat, RegisterClass RC,
+                  Operand ImmOpnd, string asm_suffix>
+    : ALU_BASE_DESC<(ins ImmOpnd:$imm),
+                    !strconcat(instr_asm, "\t$rd, $imm", asm_suffix),
+                    RC> {
+  list<dag> Pattern = [(set RC:$rd, (OpNode ImmPat:$imm))];
+  string BaseOpcode = instr_asm;
+}
+
+class ALU_RR_DESC<string instr_asm, SDPatternOperator OpNode, RegisterClass RC,
+                  string asm_suffix>
+    : ALU_BASE_DESC<(ins RC:$rs),
+                    !strconcat(instr_asm, "\t$rd, $rs", asm_suffix),
+                    RC> {
+  list<dag> Pattern = [(set RC:$rd, (OpNode RC:$rs))];
+  string BaseOpcode = instr_asm;
+}
+
+class ALU_RRI_DESC<string instr_asm, SDPatternOperator OpNode,
+                   SDPatternOperator ImmPat, RegisterClass RC,
+                   Operand ImmOpnd, string asm_suffix>
+    : ALU_BASE_DESC<(ins RC:$_rd, ImmOpnd:$imm),
+                    !strconcat(instr_asm, "\t$rd, $imm", asm_suffix),
+                    RC> {
   list<dag> Pattern = [(set RC:$rd, (OpNode RC:$_rd, ImmPat:$imm))];
   string Constraints = "$_rd = $rd";
   string BaseOpcode = instr_asm;
 }
 
+class ALU_RRR_DESC<string instr_asm, SDPatternOperator OpNode, RegisterClass RC,
+                   string asm_suffix>
+    : ALU_BASE_DESC<(ins RC:$_rd, RC:$rs),
+                    !strconcat(instr_asm, "\t$rd, $rs", asm_suffix),
+                    RC> {
+  list<dag> Pattern = [(set RC:$rd, (OpNode RC:$_rd, RC:$rs))];
+  string Constraints = "$_rd = $rd";
+  string BaseOpcode = instr_asm;
+}
+
 // 011o ooou uuuu dddd - Rd = Rd op u
-class ALU_1r4i5_ENC<VC4ALUOp opc> : S16_2r4_FMT {
+class ALU4_1r4i5_ENC<VC4ALUOp opc> : S16_1r4i5_FMT {
   let Inst{14-13} = 0b11;
   let Inst{12-9} = opc.Value{4-1};
 }
 
 // 1011 00oo oood dddd iiii iiii iiii iiii
-class ALU_1r5i16_ENC<VC4ALUOp opc> : S32_1r5i16_FMT {
+class ALU5_1r5i16_ENC<VC4ALUOp opc> : S32_1r5i16_FMT {
   let Inst{30-26} = 0b01100;
   let Inst{25-21} = opc.Value{4-0};
 }
@@ -143,85 +224,79 @@ class ALU_1r5i32_ENC<VC4ALUOp opc> : S48_1r5i32_FMT {
   let Inst{41-37} = opc.Value{4-0};
 }
 
-class ALU_RR_DESC<string instr_asm, SDPatternOperator OpNode, RegisterClass RC> {
-  dag OutOperandList = (outs RC:$rd);
-  dag InOperandList =  (ins RC:$_rd, RC:$rs);
-  string AsmString = instr_asm # "\t$rd, $rs";
-  list<dag> Pattern = [(set RC:$rd, (OpNode RC:$_rd, RC:$rs))];
-  string Constraints = "$_rd = $rd";
-  string BaseOpcode = instr_asm;
-}
-
 // 010o oooo ssss dddd
-class ALU_2r4_ENC<VC4ALUOp opc> : S16_2r4_FMT {
+class ALU5_2r4_ENC<VC4ALUOp opc> : S16_2r4_FMT {
   let Inst{14-13} = 0b10;
   let Inst{12-8} = opc.Value{4-0};
+}
+
+class ALU6CC_3r5_ENC<VC4ALUOp opc, VC4CondCode cc> : S32_addcmpbcc_3 {
+
 }
 
 // Register with Immediate logical and arithmetic operations.
 
 // 4-bit opcode - 0oooo0
-multiclass ALU4B<string instr_asm, VC4ALUOp opc, SDPatternOperator op> {
-  def _1r4i5:  ALU_1r4i5_ENC<opc>,  ALU_RI_DESC<instr_asm, op, immSExt5,  GRegs, immSExt5>;
+multiclass ALU4B_1<string instr_asm, VC4ALUOp opc, SDPatternOperator op,
+                   string asm_suffix = ""> {
+  def _2r4:   ALU_2r4_ENC<opc>,   ALU_RR_DESC<instr_asm, op, GRegs, asm_suffix>;
+  def _1r4i5: ALU_1r4i5_ENC<opc>, ALU_RI_DESC<instr_asm, op, immSExt5, GRegs, immSExt5, asm_suffix>;
+}
+
+multiclass ALU4B_2<string instr_asm, VC4ALUOp opc, SDPatternOperator op,
+                   string asm_suffix = ""> {
+  def _2r4:   ALU_2r4_ENC<opc>,   ALU_RRR_DESC<instr_asm, op, GRegs, asm_suffix>;
+  def _1r4i5: ALU_1r4i5_ENC<opc>, ALU_RRI_DESC<instr_asm, op, immSExt5, GRegs, immSExt5, asm_suffix>;
 }
 
 //defm MOV        : _ALU4<VC4ALU_mov, "mov", []>;
-defm ADD        : ALU4B<"add", VC4ALU_add, add>;
-defm MUL        : ALU4B<"mul", VC4ALU_mul, mul>;
-defm SUB        : ALU4B<"sub", VC4ALU_sub, sub>;
-//defm NOT        : ALU4B<"not", VC4ALU_not, not>;
+defm ADD        : ALU4B_2<"add", VC4ALU_add, add>;
+defm MUL        : ALU4B_2<"mul", VC4ALU_mul, mul>;
+defm SUB        : ALU4B_2<"sub", VC4ALU_sub, sub>;
+defm NOT        : ALU4B_1<"not", VC4ALU_not, UnOpFrag<(not node:$LHS)>>;
 //defm CMP        : _ALU4<VC4ALU_cmp, "cmp", []>;
 //defm BTEST      : _ALU4<VC4ALU_btest, "btest", []>;
 //defm BMASK      : _ALU4<VC4ALU_bmask, "bmask", []>;
-//defm BITSET     : _ALU4<VC4ALU_bitset, "bitset", []>;
+//defm BITSET     : ALU4B_2<"bitset", VC4ALU_bitset, BinOpFrag<(add node:$LHS>>;
 //defm BITCLEAR   : _ALU4<VC4ALU_bitclear, "bitclear", []>;
-//defm ADDSCALE2  : _ALU5<VC4ALU_addscale2, "addscale $rd, $rs << 1", []>;
 //defm BITFLIP    : _ALU4<VC4ALU_bmask, "bitflip", []>;
-//defm ADDSCALE8  : _ALU4<VC4ALU_addscale8, "addscale $rd, $rs << 3", []>;
+defm ADDSCALE8  : ALU4B_2<"addscale", VC4ALU_addscale8, BinOpFrag<(add node:$LHS, (shl node:$RHS, 3))>, " << 3">;
 //defm SIGNEXT    : _ALU4<VC4ALU_bmask, "signext", []>;
-//defm LSR        : _ALU4<VC4ALU_lsr, "lsr", srl>;
-//defm SHL        : _ALU4<VC4ALU_shl, "shl", shl>;
-//defm ASR        : _ALU4<VC4ALU_asr, "asr", sra>;
+defm LSR        : ALU4B_2<"lsr", VC4ALU_lsr, srl>;
+defm SHL        : ALU4B_2<"shl", VC4ALU_shl, shl>;
+defm ASR        : ALU4B_2<"ast", VC4ALU_asr, sra>;
 
 
 // 5-bit opcode - 0ooooo
-multiclass ALU5B<string instr_asm, VC4ALUOp opc, SDPatternOperator op> {
-  def _2r4:    ALU_2r4_ENC<opc>,    ALU_RR_DESC<instr_asm, op, GRegs>;
-  def _1r5i16: ALU_1r5i16_ENC<opc>, ALU_RI_DESC<instr_asm, op, immSExt16, ERegs, immSExt16>;
-  def _i15i32: ALU_1r5i32_ENC<opc>, ALU_RI_DESC<instr_asm, op, immSExt32, ERegs, immSExt32>;
+multiclass ALU5B_1<string instr_asm, VC4ALUOp opc, SDPatternOperator op,
+                   string asm_suffix = ""> {
+  def _2r4:    ALU_2r4_ENC<opc>,    ALU_RR_DESC<instr_asm, op, GRegs, asm_suffix>;
+  def _1r5i16: ALU_1r5i16_ENC<opc>, ALU_RI_DESC<instr_asm, op, immSExt16, ERegs, immSExt16, asm_suffix>;
+  def _i15i32: ALU_1r5i32_ENC<opc>, ALU_RI_DESC<instr_asm, op, immSExt32, ERegs, immSExt32, asm_suffix>;
 }
 
-//defm MOV        : _ALU4<VC4ALU_mov, "mov", []>;
+multiclass ALU5B_2<string instr_asm, VC4ALUOp opc, SDPatternOperator op,
+                 string asm_suffix = ""> {
+  def _2r4:    ALU_2r4_ENC<opc>,    ALU_RRR_DESC<instr_asm, op, GRegs, asm_suffix>;
+  def _1r5i16: ALU_1r5i16_ENC<opc>, ALU_RRI_DESC<instr_asm, op, immSExt16, ERegs, immSExt16, asm_suffix>;
+  def _i15i32: ALU_1r5i32_ENC<opc>, ALU_RRI_DESC<instr_asm, op, immSExt32, ERegs, immSExt32, asm_suffix>;
+}
+
 //defm CMN        : _ALU5<VC4ALU_cmn, "cmn", []>;
-defm ADD        : ALU5B<"add", VC4ALU_add, add>;
-//defm BIC        : _ALU5<VC4ALU_bic, "bic", []>;
-defm MUL        : ALU5B<"mul", VC4ALU_mul, mul>;
-defm EOR        : ALU5B<"eor", VC4ALU_eor, xor>;
-defm SUB        : ALU5B<"sub", VC4ALU_sub, sub>;
-defm AND        : ALU5B<"and", VC4ALU_and, and>;
-//defm NOT        : ALU5B<"not", VC4ALU_not, not>;
-//defm ROR        : _ALU5<VC4ALU_ror, "ror", rotr>;
-//defm CMP        : _ALU4<VC4ALU_cmp, "cmp", []>;
+defm BIC        : ALU5B_2<"bic", VC4ALU_bic, BinOpFrag<(and node:$LHS, (not node:$RHS))>>;
+defm EOR        : ALU5B_2<"eor", VC4ALU_eor, xor>;
+defm AND        : ALU5B_2<"and", VC4ALU_and, and>;
+defm ROR        : ALU5B_2<"ror", VC4ALU_ror, rotr>;
 //defm RSUB       : _ALU5<VC4ALU_rsub, "rsub", []>;
-//defm BTEST      : _ALU4<VC4ALU_btest, "btest", []>;
-defm OR         : ALU5B<"or", VC4ALU_or, or>;
-//defm BMASK      : _ALU4<VC4ALU_bmask, "bmask", []>;
+defm OR         : ALU5B_2<"or", VC4ALU_or, or>;
 //defm MAX        : _ALU5<VC4ALU_max, "max", []>;
-//defm BITSET     : _ALU4<VC4ALU_bitset, "bitset", []>;
 //defm MIN        : _ALU5<VC4ALU_min, "min", []>;
-//defm BITCLEAR   : _ALU4<VC4ALU_bitclear, "bitclear", []>;
-//defm ADDSCALE2  : _ALU5<VC4ALU_addscale2, "addscale $rd, $rs << 1", []>;
-//defm BITFLIP    : _ALU4<VC4ALU_bmask, "bitflip", []>;
-//defm ADDSCALE4  : _ALU5<VC4ALU_addscale4, "addscale $rd, $rs << 2", []>;
-//defm ADDSCALE8  : _ALU4<VC4ALU_addscale8, "addscale $rd, $rs << 3", []>;
-//defm ADDSCALE16 : _ALU5<VC4ALU_addscale16, "addscale $rd, $rs << 4", []>;
-//defm SIGNEXT    : _ALU4<VC4ALU_bmask, "signext", []>;
+defm ADDSCALE2  : ALU5B_2<"addscale", VC4ALU_addscale2, BinOpFrag<(add node:$LHS, (shl node:$RHS, 1))>, " << 1">;
+defm ADDSCALE4  : ALU5B_2<"addscale", VC4ALU_addscale4, BinOpFrag<(add node:$LHS, (shl node:$RHS, 2))>, " << 2">;
+defm ADDSCALE16 : ALU5B_2<"addscale", VC4ALU_addscale16, BinOpFrag<(add node:$LHS, (shl node:$RHS, 4))>, " << 4">;
 //defm NEG        : _ALU5<VC4ALU_neg, "neg", []>;
-defm LSR        : ALU5B<"lsr", VC4ALU_lsr, srl>;
 //defm MSB        : _ALU5<VC4ALU_msb, "msb", []>;
-defm SHL        : ALU5B<"shl", VC4ALU_shl, shl>;
 //defm BREV       : _ALU5<VC4ALU_brev, "brev", []>;
-defm ASR        : ALU5B<"asr", VC4ALU_asr, sra>;
 //defm ABS        : _ALU5<VC4ALU_abs, "abs", []>;
 
 

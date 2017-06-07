@@ -154,7 +154,7 @@ class S16_1r4_FMT : S16_FMT {
 }
 
 // S16_1r4i5 - 0... ...u uuuu dddd
-class S16_1r4i_FMT : S16_1r4_FMT {
+class S16_1r4i5_FMT : S16_1r4_FMT {
   bits<5> imm;
 
   let Inst{8-4} = imm;
