@@ -108,27 +108,22 @@ def VC4ALU_subscale256 : VC4ALUOp<0b111000>; // rd = ra - 256*rb - Sub scaled by
 //===----------------------------------------------------------------------===//
 // Instruction format superclass
 //===----------------------------------------------------------------------===//
-class VC4Inst<int sz, string opstr = "">
+class VC4Inst<int sz, dag outs, dag ins, string asmstr, list<dag> pattern>
     : Instruction {
   field bits<48> Inst;
 
   let Namespace = "VC4";
-  dag OutOperandList = (outs);
-  dag InOperandList = (ins);
-  let AsmString = "";
-  let Pattern = [];
+  dag OutOperandList = outs;
+  dag InOperandList = ins;
+  let AsmString = asmstr;
+  let Pattern = pattern;
   let Size = sz;
 
-  string BaseOpcode = opstr;
   string Arch = "vpu";
 }
 
-class VC4PseudoInst<dag outs, dag ins, string asmstr, list<dag> pat>
-    : VC4Inst<0> {
-  let OutOperandList = outs;
-  let InOperandList = ins;
-  let AsmString = asmstr;
-  let Pattern = pat;
+class VC4PseudoInst<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Inst<0, outs, ins, asmstr, pattern> {
   let isPseudo = 1;
 }
 
@@ -137,66 +132,68 @@ class VC4PseudoInst<dag outs, dag ins, string asmstr, list<dag> pat>
 // 16-bit Scalar Instructions
 //===----------------------------------------------------------------------===//
 
-class S16_FMT : VC4Inst<2> {
+class _S16<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Inst<2, outs, ins, asmstr, pattern> {
   let Inst{15} = 0;
 }
 
-class S16_0_FMT<bits<4> op> : S16_FMT {
+class _S16_0<bits<4> opc, string asmstr>
+    : _S16<(outs), (ins), asmstr, []> {
   let Inst{14-4} = 0b00000000000;
-  let Inst{3-0} = op;
+  let Inst{3-0} = opc;
 }
 
 // S16_1r4 - 0... .... .... dddd
-class S16_1r4_FMT : S16_FMT {
+class _S16_1r4<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16<outs, ins, asmstr, pattern> {
   bits<4> rd;
 
   let Inst{3-0} = rd;
 }
 
 // S16_1r4i5 - 0... ...u uuuu dddd
-class S16_1r4i5_FMT : S16_1r4_FMT {
+class _S16_1r4i5<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16_1r4<outs, ins, asmstr, pattern> {
   bits<5> imm;
 
   let Inst{8-4} = imm;
 }
 
-// S16_1r4o5 - 0... ...o oooo dddd
-class S16_1r4o5_FMT : S16_1r4_FMT {
-  bits<5> off;
-
-  let Inst{8-4} = off;
-}
-
 // S16_1r5 - 0... .... ...d dddd
-class S16_1r5_FMT : S16_FMT {
+class _S16_1r5<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16<outs, ins, asmstr, pattern> {
   bits<5> rd;
 
   let Inst{4-0} = rd;
 }
 
-// S16_1r5o6 - 0... .ooo oood dddd
-class S16_1r5o6_FMT : S16_1r5_FMT {
-  bits<6> off;
+// S16_1r5i6 - 0... .ooo oood dddd
+class _S16_1r5o6<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16_1r5<outs, ins, asmstr, pattern> {
+  bits<6> imm;
 
-  let Inst{10-5} = off;
+  let Inst{10-5} = imm;
 }
 
 // S16_2r4 - 0... .... ssss dddd
-class S16_2r4_FMT : S16_1r4_FMT {
+class _S16_2r4<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16_1r4<outs, ins, asmstr, pattern> {
   bits<4> rs;
 
   let Inst{7-4} = rs;
 }
 
 // S16_2r4i4 - 0... uuuu ssss dddd
-class S16_2r4i4_FMT : S16_2r4_FMT {
+class _S16_2r4i4<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16_2r4<outs, ins, asmstr, pattern> {
   bits<4> imm;
 
   let Inst{11-8} = imm;
 }
 
 // S16_bm - 0... .... .bbm mmmm
-class S16_bm_FMT : S16_FMT {
+class _S16_bm<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16<outs, ins, asmstr, pattern> {
   bits<2> rb;
   bits<5> rm;
 
@@ -204,15 +201,17 @@ class S16_bm_FMT : S16_FMT {
   let Inst{4-0} = rm;
 }
 
-// S16_o7 - 0... .... .ooo oooo
-class S16_o7_FMT : S16_FMT {
-  bits<7> off;
+// S16_i7 - 0... .... .iii iiii
+class _S16_i7<dag outs, dag ins, string asmstr, list<dag> pattern>
+   : _S16<outs, ins, asmstr, pattern> {
+  bits<7> imm;
 
-  let Inst{6-0} = off;
+  let Inst{6-0} = imm;
 }
 
-// S16_i6 - 0... .... ..uu uuuu
-class S16_i6_FMT : S16_FMT {
+// S16_i6 - 0... .... ..ii iiii
+class _S16_i6<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S16<outs, ins, asmstr, pattern> {
   bits<6> imm;
 
   let Inst{5-0} = imm;
@@ -223,26 +222,30 @@ class S16_i6_FMT : S16_FMT {
 // 32-bit Scalar Instructions
 //===----------------------------------------------------------------------===//
 
-class S32_FMT : VC4Inst<4> {
+class _S32<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Inst<4, outs, ins, asmstr, pattern> {
   let Inst{31} = 1;
 }
 
 // S32_1r4 - .... .... .... dddd .... .... .... ....
-class S32_1r4_FMT : S32_FMT {
+class _S32_1r4<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32<outs, ins, asmstr, pattern> {
   bits<4> rd;
 
   let Inst{19-16} = rd;
 }
 
-// S32_1r4i4u6o8 - 1... .... iiii dddd .... .... .... ....
-class S32_1r4i4_FMT : S32_1r4_FMT {
-  bits<4> imm1;
+// S32_1r4i4 - 1... .... iiii dddd .... .... .... ....
+class _S32_1r4i4<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r4<outs, ins, asmstr, pattern> {
+  bits<4> imm;
 
-  let Inst{23-20} = imm1;
+  let Inst{23-20} = imm;
 }
 
 // S32_1r4i4u6o8 - 1... .... iiii dddd ..uu uuuu oooo oooo
-class S32_1r4i4u6o8_FMT : S32_1r4i4_FMT {
+class _S32_1r4i4u6o8<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r4i4<outs, ins, asmstr, pattern> {
   bits<6> imm2;
   bits<8> off;
 
@@ -251,28 +254,24 @@ class S32_1r4i4u6o8_FMT : S32_1r4i4_FMT {
 }
 
 // S32_1r5 - 1... .... ...d dddd .... .... .... ....
-class S32_1r5_FMT : S32_FMT {
+class _S32_1r5<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32<outs, ins, asmstr, pattern> {
   bits<5> rd;
 
   let Inst{20-16} = rd;
 }
 
 // S32_1r5i16 - 1... .... ...d dddd iiii iiii iiii iiii
-class S32_1r5i16_FMT : S32_1r5_FMT {
+class _S32_1r5i16<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r5<outs, ins, asmstr, pattern> {
   bits<16> imm;
 
   let Inst{15-0} = imm;
 }
 
-// S32_1r5o16 - 1... .... ...d dddd oooo oooo oooo oooo
-class S32_1r5o16_FMT : S32_1r5_FMT {
-  bits<16> off;
-
-  let Inst{15-0} = off;
-}
-
 // S32_2r4i4o10 - 1... .... iiii dddd ..ss ssoo oooo oooo
-class S32_2r4i4o10_FMT : S32_1r4i4_FMT {
+class _S32_2r4i4o10<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r4i4<outs, ins, asmstr, pattern> {
   bits<4> rs;
   bits<10> off;
 
@@ -281,7 +280,8 @@ class S32_2r4i4o10_FMT : S32_1r4i4_FMT {
 }
 
 // S32_2r4u6o8 - 1... .... aaaa dddd ..uu uuuu oooo oooo
-class S32_2r4u6o8_FMT : S32_1r4_FMT {
+class _S32_2r4u6o8<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r4<outs, ins, asmstr, pattern> {
   bits<4> ra;
   bits<6> imm2;
   bits<8> off;
@@ -292,28 +292,32 @@ class S32_2r4u6o8_FMT : S32_1r4_FMT {
 }
 
 // S32_2r5 - 1... .... ...d dddd aaaa a... .... ....
-class S32_2r5_FMT : S32_1r5_FMT {
+class _S32_2r5<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r5<outs, ins, asmstr, pattern> {
   bits<5> ra;
 
   let Inst{15-11} = ra;
 }
 
 // S32_2r5i6 - 1... .... ...d dddd aaaa a... ..ii iiii
-class S32_2r5i6_FMT : S32_2r5_FMT {
+class _S32_2r5i6<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_2r5<outs, ins, asmstr, pattern> {
   bits<6> imm;
 
   let Inst{5-0} = imm;
 }
 
 // S32_2r5i16 - 1... ..ss sssd dddd iiii iiii iiii iiii
-class S32_2r5i16_FMT : S32_1r5i16_FMT {
+class _S32_2r5i16<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r5i16<outs, ins, asmstr, pattern> {
   bits<5> rs;
 
   let Inst{25-21} = rs;
 }
 
 // S32_2r5o12 - 1... ...o ...d dddd aaaa aooo oooo oooo
-class S32_2r5o12_FMT : S32_2r5_FMT {
+class _S32_2r5o12<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_2r5<outs, ins, asmstr, pattern> {
   bits<12> off;
 
   let Inst{24} =  off{11};
@@ -321,7 +325,8 @@ class S32_2r5o12_FMT : S32_2r5_FMT {
 }
 
 // S32_3r4o10 - 1... .... aaaa dddd ..ss ssoo oooo oooo
-class S32_3r4o10_FMT : S32_1r4i4_FMT {
+class _S32_3r4o10<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r4i4<outs, ins, asmstr, pattern> {
   bits<4> ra;
   bits<4> rs;
   bits<10> off;
@@ -332,21 +337,24 @@ class S32_3r4o10_FMT : S32_1r4i4_FMT {
 }
 
 // S32_3r5 - 1... .... ...d dddd aaaa a... ...b bbbb
-class S32_3r5_FMT : S32_2r5_FMT {
+class _S32_3r5<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_2r5<outs, ins, asmstr, pattern> {
   bits<5> rb;
 
   let Inst{4-0} = rb;
 }
 
 // S32_o23 - 1... .... 0ooo oooo oooo oooo oooo oooo
-class S32_o23_FMT : S32_FMT {
+class _S32_o23<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32<outs, ins, asmstr, pattern> {
   bits<23> off;
 
   let Inst{22-0} = off{22-0};
 }
 
 // S32_o27 - 1... oooo .ooo oooo oooo oooo oooo oooo
-class S32_o27_FMT : S32_FMT {
+class _S32_o27<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32<outs, ins, asmstr, pattern> {
   bits<27> off;
 
   let Inst{28-25} = off{26-23};
@@ -354,7 +362,8 @@ class S32_o27_FMT : S32_FMT {
 }
 
 // S32_c2r5 - 1... .... ...d dddd .... .... ...a aaaa
-class S32_c2r5_FMT : S32_1r5_FMT {
+class _S32_c2r5<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S32_1r5<outs, ins, asmstr, pattern> {
   bits<5> rs;
 
   let Inst{4-0} = rs;
@@ -364,12 +373,14 @@ class S32_c2r5_FMT : S32_1r5_FMT {
 // 48-bit Scalar Instructions
 //===----------------------------------------------------------------------===//
 
-class S48_FMT : VC4Inst<6> {
+class _S48<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : VC4Inst<6, outs, ins, asmstr, pattern> {
   let Inst{47-44} = 0b1110;
 }
 
 // S48_1r5o27 - 1110 .... ...d dddd 1111 1ooo oooo oooo oooo oooo oooo oooo
-class S48_1r5o27_FMT : S48_FMT {
+class _S48_1r5o27<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S48<outs, ins, asmstr, pattern> {
   bits<5> rd;
   bits<27> off;
 
@@ -378,42 +389,32 @@ class S48_1r5o27_FMT : S48_FMT {
 }
 
 // S48_i32 - 1110 .... .... .... uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
-class S48_i32_FMT : S48_FMT {
+class _S48_i32<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S48<outs, ins, asmstr, pattern> {
   bits<32> imm;
 
   let Inst{31-0} = imm;
 }
 
 // S48_1r5i32 - 1110 ... ...d dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
-class S48_1r5i32_FMT : S48_i32_FMT {
-  bits<5> rd;
-
-  let Inst{36-32} = rd;
-}
-
-// S48_o32 - 1110 .... .... .... oooo oooo oooo oooo oooo oooo oooo oooo
-class S48_o32_FMT : S48_FMT {
-  bits<32> off;
-
-  let Inst{31-0} = off;
-}
-
-// S48_1r5o32 - 1110 .... ...d dddd oooo oooo oooo oooo oooo oooo oooo oooo
-class S48_1r5o32_FMT : S48_o32_FMT {
+class _S48_1r5i32<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S48_i32<outs, ins, asmstr, pattern> {
   bits<5> rd;
 
   let Inst{36-32} = rd;
 }
 
 // S48_2r5o27 - 1110 .... ...d dddd ssss sooo oooo oooo oooo oooo oooo oooo
-class S48_2r5o27_FMT : S48_1r5o27_FMT {
+class _S48_2r5o27<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S48_1r5o27<outs, ins, asmstr, pattern> {
   bits<5> rs;
 
   let Inst{31-27} = rs;
 }
 
 // S48_2r5i32 - 1110 .... sssd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
-class S48_2r5i32_FMT : S48_FMT {
+class _S48_2r5i32<dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S48<outs, ins, asmstr, pattern> {
   bits<5> rd;
   bits<5> rs;
   bits<32> imm;
