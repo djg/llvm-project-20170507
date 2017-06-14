@@ -50,7 +50,7 @@ def immZExt4  : Operand<i32>, ImmLeaf<i32, [{ return isUInt<4>(Imm); }]>;
 def immZExt5  : Operand<i32>, ImmLeaf<i32, [{ return isUInt<5>(Imm); }]>;
 def immZExt6  : Operand<i32>, ImmLeaf<i32, [{ return isUInt<6>(Imm); }]>;
 def immZExt16 : Operand<i16>, ImmLeaf<i16, [{ return isUInt<16>(Imm); }]>;
-def immZext32 : Operand<i32>, ImmLeaf<i32, [{ return isUInt<32>(Imm); }]>;
+def immZExt32 : Operand<i32>, ImmLeaf<i32, [{ return isUInt<32>(Imm); }]>;
 
 def immBit : Operand<i32>, ImmLeaf<i32, [{ return Imm != 0 && isPowerOf2_32(Imm); }], bit_xform>;
 
@@ -70,42 +70,35 @@ def brtarget : Operand<OtherVT>;
 //===----------------------------------------------------------------------===//
 
 // No operands
-def BKPT   : _S16_0<0b0000, "bkpt">;
-def NOP    : _S16_0<0b0001, "nop">;
-def SLEEP  : _S16_0<0b0010, "sleep">;
-def USER   : _S16_0<0b0011, "user">;
-def EI     : _S16_0<0b0100, "ei">;
-def DI     : _S16_0<0b0101, "di">;
-def CBCLR  : _S16_0<0b0110, "cbclr">;
-def CBADD1 : _S16_0<0b0111, "cbadd1">;
-def CBADD2 : _S16_0<0b1000, "cbadd2">;
-def CBADD3 : _S16_0<0b1001, "cbadd3">;
-def RTI    : _S16_0<0b1010, "rti">;
-
-multiclass _SWI {
-  // 0000 0000 001d dddd - swi rd    Software Interrupt.  Raise interrupt 0x20+(rd&0x1f)
-  def _1r5 : _S16_1r5<(outs), (ins ERegs:$rd), "swi $rd", []> { let Inst{14-5} = 0b0000000001; }
-  // 0000 0001 11uu uuuu - swi u
-  def _i6 : _S16_i6<(outs), (ins immZExt6:$imm), "swi $imm", []> { let Inst{14-6} = 0b000000111; }
-}
+class _S16_simple<bits<4> opc, string asmstr> : _S16_0<{ 0b00000000000, opc}, asmstr>;
+def BKPT   : _S16_simple<0b0000, "bkpt">;
+def NOP    : _S16_simple<0b0001, "nop">;
+def SLEEP  : _S16_simple<0b0010, "sleep">;
+def USER   : _S16_simple<0b0011, "user">;
+def EI     : _S16_simple<0b0100, "ei">;
+def DI     : _S16_simple<0b0101, "di">;
+def CBCLR  : _S16_simple<0b0110, "cbclr">;
+def CBADD1 : _S16_simple<0b0111, "cbadd1">;
+def CBADD2 : _S16_simple<0b1000, "cbadd2">;
+def CBADD3 : _S16_simple<0b1001, "cbadd3">;
+def RTI    : _S16_simple<0b1010, "rti">;
 
 // Software Interrupt - Raise 0x20+(rd & 0x1f)
-defm SWI : _SWI;
-
-class _SWITCH<bit w, string instr_asm>
-    : _S16_1r4<(outs), (ins GRegs:$rd), instr_asm # "\t$rd", []> {
-  let Inst{14-6} = 0b000000010;
-  let Inst{5} = w;
-  let Inst{4} = 0b0;
+multiclass _SWI {
+  // 0000 0000 001d dddd - swi rd    Software Interrupt.  Raise interrupt 0x20+(rd&0x1f)
+  def _1r5 : _S16_1r5<0b0000000001, (outs), (ins ERegs:$rd), "swi $rd", []>;
+  // 0000 0001 11uu uuuu - swi u
+  def _i6 : _S16_i6<0b000000111, (outs), (ins immZExt6:$imm), "swi $imm", []>;
 }
+defm SWI : _SWI;
 
 // Table branch byte.  pc = pc + 2*(*(s8 *)(pc+rd))
 // 0000 0000 1000 dddd
-def SWITCHB : _SWITCH<0, "switch.b">;
+def SWITCHB : _S16_1r4<0b00000001000, (outs), (ins GRegs:$rd), "switch.b\t$rd", []>;
 
 // Table branch short. pc = pc + 2*(*(s16 *)(pc+rd))
 // 0000 0000 1010 dddd
-def SWITCH : _SWITCH<1, "switch">;
+def SWITCH : _S16_1r4<0b00000001010, (outs), (ins GRegs:$rd), "switch\t$rd", []>;
 
 // Version - Get cpu version and core number.
 class VERSION_DESC {
@@ -115,42 +108,27 @@ class VERSION_DESC {
 }
 
 // 0000 0000 111d dddd
-def VERSION : _S16_1r5<(outs ERegs:$rd), (ins), "version\t$rd", []>;
+def VERSION : _S16_1r5<0b0000000111, (outs ERegs:$rd), (ins), "version\t$rd", []>;
 
 //===----------------------------------------------------------------------===//
 // ALU Instructions
 //===----------------------------------------------------------------------===//
 
-let Constraints="$_rd=$rd" in {
 // 011p pppu uuuu dddd - Rd = Rd op u
 class _ALU4_1r4i5<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-   : _S16_1r4i5<outs, ins, asmstr, pattern> {
-  let Inst{14-13} = 0b11;
-  let Inst{12-9} = opc.Value{4-1};
-}
+   : _S16_1r4i5<{0b11, opc.Value{4-1}}, outs, ins, asmstr, pattern>;
 
 // 010p pppp ssss dddd
 class _ALU5_2r4<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S16_2r4<outs, ins, asmstr, pattern> {
-  let Inst{14-13} = 0b10;
-  let Inst{12-8} = opc.Value{4-0};
-}
+    : _S16_2r4<{0b10, opc.Value{4-0}}, outs, ins, asmstr, pattern>;
 
 // 1011 00pp pppd dddd iiii iiii iiii iiii
 class _ALU5_1r5i16<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S32_1r5i16<outs, ins, asmstr, pattern> {
-  let Inst{30-26} = 0b01100;
-  let Inst{25-21} = opc.Value{4-0};
-}
+    : _S32_1r5i16<{0b01100, opc.Value{4-0}},outs, ins, asmstr, pattern>;
 
 // 1110 10pp pppd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
 class _ALU5_1r5i32<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S48_1r5i32<outs, ins, asmstr, pattern> {
-  let Inst{46-42} = 0b11010;
-  let Inst{41-37} = opc.Value{4-0};
-}
-
-}
+    : _S48_1r5i32<{0b10, opc.Value{4-0}}, outs, ins, asmstr, pattern>;
 
 /*
 // 1100 0ppp pppd dddd aaaa accc c00b bbbb
@@ -215,6 +193,7 @@ multiclass ALU4U<VC4ALUOp opc, string instr_asm, SDPatternOperator op, string as
 }
 
 // 5-bit opcode - 0ooooo
+let Constraints = "$_rd = $rd" in {
 multiclass ALU5B<VC4ALUOp opc, string instr_asm, SDPatternOperator op, string asm_suffix = ""> {
   def _2r4:    _ALU5_2r4<opc, (outs GRegs:$rd), (ins GRegs:$_rd, GRegs:$ra),
                          instr_asm # "\t$rd, $ra" # asm_suffix,
@@ -225,6 +204,7 @@ multiclass ALU5B<VC4ALUOp opc, string instr_asm, SDPatternOperator op, string as
   def _i15i32: _ALU5_1r5i32<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt32:$imm),
                            instr_asm # "\t$rd, $imm" # asm_suffix,
                            [(set ERegs:$rd, (op ERegs:$_rd, immSExt32:$imm))]>;
+}
 }
 
 //defm MOV        : _ALU4<VC4ALU_mov, "mov", []>;
@@ -266,32 +246,38 @@ defm ADDSCALE16 : ALU5B<VC4ALU_addscale16, "addscale", BinOpFrag<(add node:$LHS,
 // Add register + immediate
 //===----------------------------------------------------------------------===*/
 
-// add rd, rs, i
-class ADD_RRI_DESC<string instr_asm, RegisterClass RC, Operand ImmOpnd,
-                   SDPatternOperator ImmPat> {
-  dag OutOperandList = (outs RC:$rd);
-  dag InOperandList =  (ins RC:$rs, ImmOpnd:$imm);
-  string AsmString = instr_asm # "\t$rd, $rs, $imm";
-  list<dag> Pattern = [(set RC:$rd, (add RC:$rs, ImmPat:$imm))];
-  string BaseOpcode = instr_asm;
+multiclass _ADD {
+  // 1011 01ss sssd dddd iiii iiii iiii iiii   add rd, rs, i
+  def 2r5i16 : _S32_2r5i16<0b01101, (outs ERegs:$rd), (ins immSExt16:$imm),
+                  "add\t$rd, $rs, $imm",
+                  [(set ERegs:$rd, (add ERegs:$rs, immSExt16:$imm))]>;
+
+  // 1110 11ss sssd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
+  def _2r5i32 : _S48_2r5i32<0b11, (outs ERegs:$rd), (ins ERegs:$rs, immZExt32:$imm),
+                  "add\t$rd, $rs, $imm",
+                  [(set ERegs:$rd, (add ERegs:$rs, immZExt32:$imm))]>;
 }
 
-// 1011 01ss sssd dddd iiii iiii iiii iiii
-class ADD_2r5i16_ENC : _S16_2r4_FMT {
-  let Inst{30-26} = 0b01101;
+defm ADD : _ADD;
+
+multiclass _ADDpc {
+  // 1011 1111 111d dddd oooo oooo oooo oooo   add rd, pc, o
+  def _1r5i16 : _S32_1r5i16<0b0111111111, (outs ERegs:$rd), (ins immSExt16:$imm),
+                 "add\t$rd, pc, $imm",
+                 []>;
+
+  // 1110 0101 000d dddd oooo oooo oooo oooo oooo oooo oooo oooo   add rd, pc, o                      rd = pc + o
+  def _1r5i32 : _S48_1r5i32<0b0101000, (outs ERegs:$rd), (ins immZExt32:$imm),
+                  "add\t$rd, pc, $imm",
+                  []>;
 }
 
-// 1110 11ss sssd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
-class ADD_2r5i32_ENC : S16_2r4_FMT {
-  let Inst{30-26} = 0b11011;
-}
+defm ADDpc : _ADDpc;
 
-multiclass ADDrri<string instr_asm> {
-  def _2r5i16: ADD_2r5i16_ENC, ADD_RRI_DESC<instr_asm, ERegs, immSExt16, immSExt16>;
-  def _2r5i32: ADD_2r5i32_ENC, ADD_RRI_DESC<instr_asm, ERegs, immSExt32, immSExt32>;
-}
-
-defm ADD : ADDrri<"add">;
+// 0001 0ooo oood dddd - add  rd, sp, o*4     rd = sp + o*4
+def ADDsp_1r5i6 : _S16_1r5i6<0b0010, (outs ERegs:$rd), (ins immSExt6x4:$imm),
+                             "add\t$rd, sp, $imm",
+                             []>;
 
 //===----------------------------------------------------------------------===*/
 // AddCmpBCC Instructions
@@ -373,107 +359,48 @@ class ADDpc_DESC<string instr_asm, SDPatternOperator OpNode, RegisterClass RC> {
 // Direct branch
 
 // Branch on condition to target - b<cc>  $+o*2
-class B_DESC<dag ins, list<dag> pat> {
-  dag InOperandList = ins;
-  string AsmString = "b\t$off";
-  list<dag> Pattern = pat;
-  string BaseOpcode = "b";
-}
-
-// 0001 1111 0ooo oooo -
-class B_o7_ENC : S16_o7_FMT {
-  let Inst{14-7} = 0b00111110;
-}
-
-// 1110 0001 0000 0000 oooo oooo oooo oooo oooo oooo oooo oooo   b $+o                              Branch to target.
-class B_o32_ENC : S48_o32_FMT {
-  let Inst{46-32} = 0b110000100000000;
-}
-
 let isBranch = 1, isTerminator = 1 in {
-def B_o8: B_o7_ENC, B_DESC<(ins brtarget8:$off), []>;
-def B_o32: B_o32_ENC, B_DESC<(ins brtarget:$off), []>;
+// 0001 1111 0ooo oooo -
+def B_o8: _S16_i7<0b00111110, (outs), (ins brtarget8:$imm), "b\t$imm", []>;
+// 1110 0001 0000 0000 oooo oooo oooo oooo oooo oooo oooo oooo   b $+o                              Branch to target.
+def B_o32: _S48_i32<0b000100000000, (outs), (ins brtarget:$off), "b\t$imm", []>;
 }
 
 //===----------------------------------------------------------------------===//
 // Indirect branch
-class BRIND_DESC {
-  dag InOperandList = (ins ERegs:$rd);
-  string AsmString = "b\t$rd";
-  list<dag> Pattern = [(brind ERegs:$rd)];
-  string BaseOpcode = "b";
-}
-
-// 0000 0000 010d dddd
-class BRIND_1r5_ENC : S16_1r5_FMT {
-  let Inst{14-5} = 0b0000000010;
-}
 
 // Indirect branch - b $rd
-//let isBranch = 1, isIndirectBranch = 1, isTerminator = 1, isBarrier = 1 {
-def BRIND_1r5 : BRIND_1r5_ENC, BRIND_DESC;
-//}
-
-class BL_r_DESC<string instr_asm> {
-  dag InOperandList = (ins ERegs:$rd);
-  string AsmString = instr_asm # "\t$rd";
-  string BaseOpcode = instr_asm;
+let isBranch = 1, isIndirectBranch = 1, isTerminator = 1, isBarrier = 1 in {
+  def BRIND_1r5 : _S16_1r5<0b0000000010, (outs), (ins ERegs:$rd), "b\t$rd", [(brind ERegs:$rd)]>;
 }
 
-class BL_off_DESC<string instr_asm> {
-  dag InOperandList = (ins brtarget:$off);
-  string AsmString = instr_asm # "\t$off";
-  string BaseOpcode = instr_asm;
-}
-
-// 0000 0000 011d dddd
-class BL_1r5_ENC : S16_1r5_FMT {
-  let Inst{14-5} = 0b0000000011;
-}
-
-// 1001 oooo 1ooo oooo oooo oooo oooo oooo
-class BL_o28_ENC : S32_o27_FMT {
-  let Inst{30-28} = 0b001;
-  let Inst{23} = 0b1;
-}
-
-// 1110 0011 0000 0000 oooo oooo oooo oooo oooo oooo oooo oooo
-class BL_o32_ENC : S48_o32_FMT {
-  let Inst{46-32} = 0b110001100000000;
+multiclass _BL {
+  def _1r5 : _S16_1r5<0b0000000011, (outs), (ins ERegs:$rd), "bl\t$rd", []>;
+  def _o28 : _S32_i27<0b001, 0b1, (outs), (ins immSExt27x2:$imm), "bl\t$imm", []>;
+  def _o32 : _S48_i32<0b001100000000, (outs), (ins immSExt32:$imm), "bl\t$imm", []>;
 }
 
 // Branch and Link - bl rd; bl $+o
 let isCall=1, Defs = [R0, R1, R2, R3, R4, R5, LR] in {
-def BL_1r5 : BL_1r5_ENC, BL_r_DESC<"bl">;
-def BL_o28 : BL_o28_ENC, BL_off_DESC<"bl">;
-def BL_o32 : BL_o32_ENC, BL_off_DESC<"bl">;
+  defm BL : _BL;
 }
 
 //===----------------------------------------------------------------------===//
 // Conditional Branch
 
-class BCC_DESC<string instr_asm> {
-  dag InOperandList = (ins brtarget:$off);
-  string AsmString = instr_asm # "\t$off";
-  string BaseOpcode = instr_asm;
-}
-
 // 0001 1ccc cooo oooo - b<cc> $+2*o
-class BCC_o8_ENC<VC4CondCode cc> : S16_o7_FMT {
-  let Inst{14-11} = 0b0011;
-  let Inst{10-7} = cc.Value;
-}
+class _BCC_o8<VC4CondCode cc, string instr_asm>
+    : _S16_i7<{0b0011, cc.Value{3-0}}, (outs), (ins brtarget:$imm),
+              instr_asm # "\t$imm", []>;
 
 // 1001 cccc 0ooo oooo oooo oooo oooo oooo - b<cc> $+2*o
-class BCC_o24_ENC<VC4CondCode cc> : S32_o23_FMT {
-  let Inst{30-28} = 0b001;
-  let Inst{27-24} = cc.Value;
-  let Inst{23} = 0b0;
-}
+class _BCC_o24<VC4CondCode cc, string instr_asm>
+    : _S32_i23<{0b001, cc.Value{3-0}, 0b0}, (outs), (ins brtarget:$imm),
+              instr_asm # "\t$imm", []>;
 
 multiclass _BCC<VC4CondCode cc, string instr_asm> {
-  def _o8 : BCC_o8_ENC<cc>, BCC_DESC<instr_asm>;
-  def _o24 : BCC_o24_ENC<cc>, BCC_DESC<instr_asm>;
+  def _o8 : _BCC_o8<cc, instr_asm>;
+  def _o24 : _BCC_o24<cc, instr_asm>;
 }
 
 defm BEQ : _BCC<VC4CC_eq, "beq">;
@@ -547,7 +474,7 @@ class LDSTM_DESC<bit lrpc, bit ldst> {
 // 0000 0010 1bbm mmmm - stm rb-rm,(--sp)     Store registers to stack (lowest first).
 // 0000 0011 0bbm mmmm - ldm rb-rm,pc,(sp++)  Load registers from stack and final value into pc.
 // 0000 0011 1bbm mmmm - stm rb-rm,lr,(--sp)  Store lr followed by registers onto stack.
-class LDSTM_ENC<bit lrpc, bit ldst> : S16_FMT {
+class LDSTM_ENC<bit lrpc, bit ldst> : _S16_FMT {
   let Inst{14-9} = 0b000001;
   let Inst{8} = lrpc;
   let Inst{7} = ldst;
