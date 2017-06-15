@@ -65,7 +65,6 @@ class VC4PseudoInst<dag outs, dag ins, string asmstr, list<dag> pattern>
   let isPseudo = 1;
 }
 
-
 //===----------------------------------------------------------------------===//
 // 16-bit Scalar Instructions
 //===----------------------------------------------------------------------===//
@@ -75,8 +74,8 @@ class _S16<dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{15} = 0;
 }
 
-class _S16_0<bits<15> opc, string asmstr>
-    : _S16<(outs), (ins), asmstr, []> {
+class _S16_0<bits<15> opc, string asmstr, list<dag> pattern = []>
+    : _S16<(outs), (ins), asmstr, pattern> {
   let Inst{14-0} = opc;
 }
 
@@ -359,14 +358,16 @@ class _S48<dag outs, dag ins, string asmstr, list<dag> pattern>
   let Inst{47-44} = 0b1110;
 }
 
-// S48_1r5o27 - 1110 .... ...d dddd 1111 1ooo oooo oooo oooo oooo oooo oooo
-class _S48_1r5o27<dag outs, dag ins, string asmstr, list<dag> pattern>
+// S48_1r5i27 - 1110 .... ...d dddd 1111 1ooo oooo oooo oooo oooo oooo oooo
+class _S48_1r5i27<bits<7> opc1, bits<5> opc2, dag outs, dag ins, string asmstr, list<dag> pattern>
     : _S48<outs, ins, asmstr, pattern> {
   bits<5> rd;
-  bits<27> off;
+  bits<27> imm;
 
+  let Inst{43-37} = opc1;
   let Inst{36-32} = rd;
-  let Inst{26-0} = off;
+  let Inst{31-27} = opc2;
+  let Inst{26-0} = imm;
 }
 
 // S48_i32 - 1110 .... .... .... uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
@@ -389,12 +390,18 @@ class _S48_1r5i32<bits<7> opc, dag outs, dag ins, string asmstr, list<dag> patte
   let Inst{31-0} = imm;
 }
 
-// S48_2r5o27 - 1110 .... ...d dddd ssss sooo oooo oooo oooo oooo oooo oooo
-class _S48_2r5o27<dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S48_1r5o27<outs, ins, asmstr, pattern> {
+// S48_2r5i27 - 1110 .... ...d dddd ssss sooo oooo oooo oooo oooo oooo oooo
+class _S48_2r5i27<bits<7> opc, dag outs, dag ins, string asmstr, list<dag> pattern>
+    : _S48<outs, ins, asmstr, pattern> {
+  bits<5> rd;
   bits<5> rs;
+  bits<27> imm;
 
+  let Inst{43-37} = opc;
+  let Inst{36-32} = rd;
   let Inst{31-27} = rs;
+  let Inst{26-0} = imm;
+
 }
 
 // S48_2r5i32 - 1110 ..ss sssd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu

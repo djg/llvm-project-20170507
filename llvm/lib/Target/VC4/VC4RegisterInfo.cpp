@@ -36,7 +36,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "xcore-reg-info"
+#define DEBUG_TYPE "vc4-reg-info"
 
 #define GET_REGINFO_TARGET_DESC
 #include "VC4GenRegisterInfo.inc"
@@ -45,166 +45,66 @@ VC4RegisterInfo::VC4RegisterInfo()
   : VC4GenRegisterInfo(VC4::LR) {
 }
 
-// TODO:
-#if 0
+enum {
+  Imm5,
+  Imm16,
+  Imm27,
+};
+
+static int LDWSPOpcode(unsigned Size) {
+  switch (Size) {
+    default:
+      llvm_unreachable("Invalid Size");
+    case Imm5:
+      return VC4::LDWSP_1r4o7;
+    case Imm16:
+      return VC4::LDWSP_1r5o16;
+    case Imm27:
+      return VC4::LDWSP_1r5o27;
+  }
+}
+
+static int STWSPOpcode(unsigned Size) {
+  switch (Size) {
+    default:
+      llvm_unreachable("Invalid Size");
+    case Imm5:
+      return VC4::STWSP_1r4o7;
+    case Imm16:
+      return VC4::STWSP_1r5o16;
+    case Imm27:
+      return VC4::STWSP_1r5o27;
+  }
+}
+
 // helper functions
-static inline bool isImmUs(unsigned val) {
-  return val <= 11;
-}
-
-static inline bool isImmU6(unsigned val) {
-  return val < (1 << 6);
-}
-
-static inline bool isImmU16(unsigned val) {
-  return val < (1 << 16);
-}
-
-
-static void InsertFPImmInst(MachineBasicBlock::iterator II,
-                            const VC4InstrInfo &TII,
-                            unsigned Reg, unsigned FrameReg, int Offset ) {
+static void
+InsertSPImmInst(MachineBasicBlock::iterator II,
+                const VC4InstrInfo &TII,
+                unsigned Reg, unsigned Offset, unsigned Size) {
   MachineInstr &MI = *II;
   MachineBasicBlock &MBB = *MI.getParent();
   DebugLoc dl = MI.getDebugLoc();
 
   switch (MI.getOpcode()) {
-  case VC4::LDWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::LDW_2rus), Reg)
-          .addReg(FrameReg)
-          .addImm(Offset)
-          .addMemOperand(*MI.memoperands_begin());
-    break;
-  case VC4::STWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::STW_2rus))
-          .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
-          .addReg(FrameReg)
-          .addImm(Offset)
-          .addMemOperand(*MI.memoperands_begin());
-    break;
-  case VC4::LDAWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::LDAWF_l2rus), Reg)
-          .addReg(FrameReg)
-          .addImm(Offset);
-    break;
+    int NewOpcode;
   default:
     llvm_unreachable("Unexpected Opcode");
-  }
-}
-
-static void InsertFPConstInst(MachineBasicBlock::iterator II,
-                              const VC4InstrInfo &TII,
-                              unsigned Reg, unsigned FrameReg,
-                              int Offset, RegScavenger *RS ) {
-  assert(RS && "requiresRegisterScavenging failed");
-  MachineInstr &MI = *II;
-  MachineBasicBlock &MBB = *MI.getParent();
-  DebugLoc dl = MI.getDebugLoc();
-  unsigned ScratchOffset = RS->scavengeRegister(&VC4::GRRegsRegClass, II, 0);
-  RS->setRegUsed(ScratchOffset);
-  TII.loadImmediate(MBB, II, ScratchOffset, Offset);
-
-  switch (MI.getOpcode()) {
   case VC4::LDWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::LDW_3r), Reg)
-          .addReg(FrameReg)
-          .addReg(ScratchOffset, RegState::Kill)
-          .addMemOperand(*MI.memoperands_begin());
-    break;
-  case VC4::STWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::STW_l3r))
-          .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
-          .addReg(FrameReg)
-          .addReg(ScratchOffset, RegState::Kill)
-          .addMemOperand(*MI.memoperands_begin());
-    break;
-  case VC4::LDAWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::LDAWF_l3r), Reg)
-          .addReg(FrameReg)
-          .addReg(ScratchOffset, RegState::Kill);
-    break;
-  default:
-    llvm_unreachable("Unexpected Opcode");
-  }
-}
-
-static void InsertSPImmInst(MachineBasicBlock::iterator II,
-                            const VC4InstrInfo &TII,
-                            unsigned Reg, int Offset) {
-  MachineInstr &MI = *II;
-  MachineBasicBlock &MBB = *MI.getParent();
-  DebugLoc dl = MI.getDebugLoc();
-  bool isU6 = isImmU6(Offset);
-
-  switch (MI.getOpcode()) {
-  int NewOpcode;
-  case VC4::LDWFI:
-    NewOpcode = (isU6) ? VC4::LDWSP_ru6 : VC4::LDWSP_lru6;
+    NewOpcode = LDWSPOpcode(Size);
     BuildMI(MBB, II, dl, TII.get(NewOpcode), Reg)
-          .addImm(Offset)
-          .addMemOperand(*MI.memoperands_begin());
+      .addImm(Offset)
+      .addMemOperand(*MI.memoperands_begin());
     break;
   case VC4::STWFI:
-    NewOpcode = (isU6) ? VC4::STWSP_ru6 : VC4::STWSP_lru6;
+    NewOpcode = STWSPOpcode(Size);
     BuildMI(MBB, II, dl, TII.get(NewOpcode))
-          .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
-          .addImm(Offset)
-          .addMemOperand(*MI.memoperands_begin());
+      .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
+      .addImm(Offset)
+      .addMemOperand(*MI.memoperands_begin());
     break;
-  case VC4::LDAWFI:
-    NewOpcode = (isU6) ? VC4::LDAWSP_ru6 : VC4::LDAWSP_lru6;
-    BuildMI(MBB, II, dl, TII.get(NewOpcode), Reg)
-          .addImm(Offset);
-    break;
-  default:
-    llvm_unreachable("Unexpected Opcode");
   }
 }
-
-static void InsertSPConstInst(MachineBasicBlock::iterator II,
-                                const VC4InstrInfo &TII,
-                                unsigned Reg, int Offset, RegScavenger *RS ) {
-  assert(RS && "requiresRegisterScavenging failed");
-  MachineInstr &MI = *II;
-  MachineBasicBlock &MBB = *MI.getParent();
-  DebugLoc dl = MI.getDebugLoc();
-  unsigned OpCode = MI.getOpcode();
-
-  unsigned ScratchBase;
-  if (OpCode==VC4::STWFI) {
-    ScratchBase = RS->scavengeRegister(&VC4::GRRegsRegClass, II, 0);
-    RS->setRegUsed(ScratchBase);
-  } else
-    ScratchBase = Reg;
-  BuildMI(MBB, II, dl, TII.get(VC4::LDAWSP_ru6), ScratchBase).addImm(0);
-  unsigned ScratchOffset = RS->scavengeRegister(&VC4::GRRegsRegClass, II, 0);
-  RS->setRegUsed(ScratchOffset);
-  TII.loadImmediate(MBB, II, ScratchOffset, Offset);
-
-  switch (OpCode) {
-  case VC4::LDWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::LDW_3r), Reg)
-          .addReg(ScratchBase, RegState::Kill)
-          .addReg(ScratchOffset, RegState::Kill)
-          .addMemOperand(*MI.memoperands_begin());
-    break;
-  case VC4::STWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::STW_l3r))
-          .addReg(Reg, getKillRegState(MI.getOperand(0).isKill()))
-          .addReg(ScratchBase, RegState::Kill)
-          .addReg(ScratchOffset, RegState::Kill)
-          .addMemOperand(*MI.memoperands_begin());
-    break;
-  case VC4::LDAWFI:
-    BuildMI(MBB, II, dl, TII.get(VC4::LDAWF_l3r), Reg)
-          .addReg(ScratchBase, RegState::Kill)
-          .addReg(ScratchOffset, RegState::Kill);
-    break;
-  default:
-    llvm_unreachable("Unexpected Opcode");
-  }
-}
-#endif
 
 bool VC4RegisterInfo::needsFrameMoves(const MachineFunction &MF) {
   return MF.getMMI().hasDebugInfo() ||
@@ -220,11 +120,13 @@ VC4RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     VC4::R16, VC4::R17, VC4::R18, VC4::R19, VC4::R20, VC4::R21, VC4::R22, VC4::R23,
     0
   };
+
   static const MCPhysReg CalleeSavedRegsFP[] = {
     VC4::R6, VC4::R7, VC4::R8, VC4::R9, VC4::R10, VC4::R11, VC4::R12, VC4::R13, VC4::R14, VC4::R15,
     VC4::R16, VC4::R17, VC4::R18, VC4::R19, VC4::R20, VC4::R21, VC4::R22,
     0
   };
+
   const VC4FrameLowering *TFI = getFrameLowering(*MF);
   if (TFI->hasFP(*MF))
     return CalleeSavedRegsFP;
@@ -264,16 +166,17 @@ void
 VC4RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                      int SPAdj, unsigned FIOperandNum,
                                      RegScavenger *RS) const {
-  // TODO:
-#if 0
+  DEBUG(dbgs() << "VC4RegisterInfo::eliminateFrameIndex(II, SPAdj=" << SPAdj <<
+        ", FIOperandNum=" << FIOperandNum <<
+        ", RegScavenger=" << RS << ")\n");
+
   assert(SPAdj == 0 && "Unexpected");
   MachineInstr &MI = *II;
   MachineOperand &FrameOp = MI.getOperand(FIOperandNum);
   int FrameIndex = FrameOp.getIndex();
 
   MachineFunction &MF = *MI.getParent()->getParent();
-  const VC4InstrInfo &TII =
-      *static_cast<const VC4InstrInfo *>(MF.getSubtarget().getInstrInfo());
+  const VC4InstrInfo &TII = *static_cast<const VC4InstrInfo *>(MF.getSubtarget().getInstrInfo());
 
   const VC4FrameLowering *TFI = getFrameLowering(MF);
   int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
@@ -309,25 +212,33 @@ VC4RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Offset/=4;
 
   unsigned Reg = MI.getOperand(0).getReg();
-  assert(VC4::GRRegsRegClass.contains(Reg) && "Unexpected register operand");
+  bool IsGReg = VC4::GRegsRegClass.contains(Reg);
 
   if (TFI->hasFP(MF)) {
-    if (isImmUs(Offset))
+    /*    if (isImmUs(Offset))
       InsertFPImmInst(II, TII, Reg, FrameReg, Offset);
     else
       InsertFPConstInst(II, TII, Reg, FrameReg, Offset, RS);
-  } else {
-    if (isImmU16(Offset))
-      InsertSPImmInst(II, TII, Reg, Offset);
-    else
-      InsertSPConstInst(II, TII, Reg, Offset, RS);
+    */
+    llvm_unreachable("Frame Pointer not supported");
+  } else { // SP relative
+    unsigned Size = 0;
+    if (IsGReg && isShiftedUInt<5,2>(Offset)) {
+      Size = Imm5;
+    } else if (isInt<16>(Offset)) {
+      Size = Imm16;
+    } else if (isInt<27>(Offset)) {
+      Size = Imm27;
+    } else {
+      llvm_unreachable("Stack Offset is too large!");
+    }
+    InsertSPImmInst(II, TII, Reg, Offset, Size);
   }
+
   // Erase old instruction.
   MachineBasicBlock &MBB = *MI.getParent();
   MBB.erase(II);
-#endif
 }
-
 
 unsigned VC4RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const VC4FrameLowering *TFI = getFrameLowering(MF);

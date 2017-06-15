@@ -13,7 +13,13 @@ include "VC4Operators.td"
 // Operands, Complex Patterns and Transformations Definitions.
 //===----------------------------------------------------------------------===//
 
-class BinOpFrag<dag res> : PatFrag<(ops node:$LHS, node:$RHS), res>;
+// Stack relative load/store
+
+def SDT_ldwsp    : SDTypeProfile<1, 1, [SDTCisInt<1>]>;
+def ldwsp : SDNode<"VC4ISD::LDWSP", SDT_ldwsp, [SDNPHasChain, SDNPMayLoad]>;
+def SDT_stwsp    : SDTypeProfile<0, 2, [SDTCisInt<1>]>;
+def stwsp : SDNode<"VC4ISD::STWSP", SDT_stwsp, [SDNPHasChain, SDNPMayStore]>;
+
 class UnOpFrag<dag res> : PatFrag<(ops node:$LHS), res>;
 
 def div2 : SDNodeXForm<imm, [{
@@ -55,16 +61,25 @@ def immZExt32 : Operand<i32>, ImmLeaf<i32, [{ return isUInt<32>(Imm); }]>;
 
 def immBit : Operand<i32>, ImmLeaf<i32, [{ return Imm != 0 && isPowerOf2_32(Imm); }], bit_xform>;
 
+// Addressing modes
+def ADDRspii : ComplexPattern<i32, 2, "SelectADDRspii", [frameindex], []>;
+
 // Address operand
-def mem : Operand<iPTR> {
-  let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops GRegs, immSExt16);
-  let EncoderMethod = "getMemEncoding";
+def MEMii : Operand<i32> {
+  let MIOperandInfo = (ops i32imm, i32imm);
 }
 
 // Branch target
 def brtarget8 : Operand<OtherVT>, ImmLeaf<i8, [{}], div2>;
 def brtarget : Operand<OtherVT>;
+
+// These are target-independent nodes, but have target-specific formats.
+def SDT_VC4CallSeqStart : SDCallSeqStart<[ SDTCisVT<0, i32> ]>;
+def SDT_VC4CallSeqEnd   : SDCallSeqEnd<[ SDTCisVT<0, i32>, SDTCisVT<1, i32> ]>;
+
+def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_VC4CallSeqStart, [SDNPHasChain, SDNPOutGlue]>;
+def callseq_end : SDNode<"ISD::CALLSEQ_END", SDT_VC4CallSeqEnd, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+
 
 //===----------------------------------------------------------------------===//
 // Instructions
@@ -114,148 +129,7 @@ def VERSION : _S16_1r5<0b0000000111, (outs ERegs:$rd), (ins), "version\t$rd", []
 //===----------------------------------------------------------------------===//
 // ALU Instructions
 //===----------------------------------------------------------------------===//
-#include "VC4InstrALU.td"
-
-// 011p pppu uuuu dddd - Rd = Rd op u
-class _ALU4_1r4i5<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-   : _S16_1r4i5<{0b11, opc.Value{4-1}}, outs, ins, asmstr, pattern>;
-
-// 010p pppp ssss dddd
-class _ALU5_2r4<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S16_2r4<{0b10, opc.Value{4-0}}, outs, ins, asmstr, pattern>;
-
-// 1011 00pp pppd dddd iiii iiii iiii iiii
-class _ALU5_1r5i16<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S32_1r5i16<{0b01100, opc.Value{4-0}},outs, ins, asmstr, pattern>;
-
-// 1110 10pp pppd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
-class _ALU5_1r5i32<VC4ALUOp opc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S48_1r5i32<{0b10, opc.Value{4-0}}, outs, ins, asmstr, pattern>;
-
-// 1100 0ppp pppd dddd aaaa accc c00b bbbb   
-class _ALU6_3r5<VC4ALUOp opc, VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S32_3r5<{0b1000, opc.Value{5-0}}, {cc.Value{3-0}, 0b00}, outs, ins, asmstr, pattern>;
-
-// 1100 0ppp pppd dddd aaaa accc c1ii iiii   
-class _ALU6_2r5i6<VC4ALUOp opc, VC4CondCode cc, dag outs, dag ins, string asmstr, list<dag> pattern>
-    : _S32_2r5i6<{0b1000, opc.Value{5-0}}, {cc.Value{3-0}, 0b1}, outs, ins, asmstr, pattern>;
-
-// Register with Immediate logical and arithmetic operations.
-
-// 4-bit opcode - 0oooo0
-let Constraints = "$_rd = $rd" in {
-  multiclass ALU4B_np<VC4ALUOp opc, string instr_asm, string asm_suffix = ""> {
-    def _1r4i5: _ALU4_1r4i5<opc, (outs GRegs:$rd), (ins GRegs:$_rd, immZExt5:$imm),
-                            instr_asm # "\t$rd, $imm" # asm_suffix, []>;
-    def _1r5i16: _ALU5_1r5i16<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt16:$imm),
-                              instr_asm # "\t$rd, $imm" # asm_suffix, []>;
-    def _i15i32: _ALU5_1r5i32<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt32:$imm),
-                              instr_asm # "\t$rd, $imm" # asm_suffix, []>;
-    def _2r4:  _ALU5_2r4<opc, (outs GRegs:$rd), (ins GRegs:$_rd, GRegs:$ra),
-                         instr_asm # "\t$rd, $ra" # asm_suffix, []>;
-  }
-
-  multiclass ALU4B<VC4ALUOp opc, string instr_asm, SDPatternOperator op, string asm_suffix = ""> {
-    def _1r4i5: _ALU4_1r4i5<opc, (outs GRegs:$rd), (ins GRegs:$_rd, immZExt5:$imm),
-                          instr_asm # "\t$rd, $imm" # asm_suffix,
-                          [(set GRegs:$rd, (op GRegs:$_rd, immZExt5:$imm))]>;
-    def _1r5i16: _ALU5_1r5i16<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt16:$imm),
-                            instr_asm # "\t$rd, $imm" # asm_suffix,
-                            [(set ERegs:$rd, (op ERegs:$_rd, immSExt16:$imm))]>;
-    def _i15i32: _ALU5_1r5i32<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt32:$imm),
-                            instr_asm # "\t$rd, $imm" # asm_suffix,
-                            [(set ERegs:$rd, (op ERegs:$_rd, immSExt32:$imm))]>;
-    def _2r4:  _ALU5_2r4<opc, (outs GRegs:$rd), (ins GRegs:$_rd, GRegs:$ra),
-                        instr_asm # "\t$rd, $ra" # asm_suffix,
-                        [(set GRegs:$rd, (op GRegs:$_rd, GRegs:$ra))]>;
-  }
-}
-
-multiclass ALU4U<VC4ALUOp opc, string instr_asm, SDPatternOperator op, string asm_suffix = ""> {
-  def _1r4i5: _ALU4_1r4i5<opc, (outs GRegs:$rd), (ins immZExt5:$imm),
-                        instr_asm # "\t$rd, $imm" # asm_suffix,
-                        [(set GRegs:$rd, (op immZExt5:$imm))]>;
-  def _1r5i16: _ALU5_1r5i16<opc, (outs ERegs:$rd), (ins immSExt16:$imm),
-                           instr_asm # "\t$rd, $imm" # asm_suffix,
-                           [(set ERegs:$rd, (op immSExt16:$imm))]>;
-  def _i15i32: _ALU5_1r5i32<opc, (outs ERegs:$rd), (ins immSExt32:$imm),
-                           instr_asm # "\t$rd, $imm" # asm_suffix,
-                           [(set ERegs:$rd, (op immSExt32:$imm))]>;
-  def _2r4:  _ALU5_2r4<opc, (outs GRegs:$rd), (ins GRegs:$ra),
-                      instr_asm # "\t$rd, $ra" # asm_suffix,
-                      [(set GRegs:$rd, (op GRegs:$ra))]>;
-}
-
-// 5-bit opcode - 0ooooo
-let Constraints = "$_rd = $rd" in {
-  multiclass _ALU5B<VC4ALUOp opc, string instr_asm, SDPatternOperator op, string asm_suffix = ""> {
-    def _2r4:    _ALU5_2r4<opc, (outs GRegs:$rd), (ins GRegs:$_rd, GRegs:$ra),
-                           instr_asm # "\t$rd, $ra" # asm_suffix,
-                           [(set GRegs:$rd, (op GRegs:$_rd, GRegs:$ra))]>;
-    def _1r5i16: _ALU5_1r5i16<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt16:$imm),
-                            instr_asm # "\t$rd, $imm" # asm_suffix,
-                            [(set ERegs:$rd, (op ERegs:$_rd, immSExt16:$imm))]>;
-    def _i15i32: _ALU5_1r5i32<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt32:$imm),
-                            instr_asm # "\t$rd, $imm" # asm_suffix,
-                            [(set ERegs:$rd, (op ERegs:$_rd, immSExt32:$imm))]>;
-  }
-
-  multiclass _ALU5B_np<VC4ALUOpc, string instr_asm, string asm_suffix = ""> {
-    def _2r4:    _ALU5_2r4<opc, (outs GRegs:$rd), (ins GRegs:$_rd, GRegs:$ra),
-                           instr_asm # "\t$rd, $ra" # asm_suffix, []>;
-    def _1r5i16: _ALU5_1r5i16<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt16:$imm),
-                              instr_asm # "\t$rd, $imm" # asm_suffix, []>;
-    def _i15i32: _ALU5_1r5i32<opc, (outs ERegs:$rd), (ins ERegs:$_rd, immSExt32:$imm),
-                              instr_asm # "\t$rd, $imm" # asm_suffix, []>;
-  
-  }
-}
-
-// 6-bit opcode - oooooo
-// <op> rd, ra, rb - rd = rd op ra
-// <op> rd, ra, i  - rd = ra op i
-multiclass _ALU6T<VL4ALUOp opc, string instr_asm, SDPatternOperator op, string asm_suffix = ""> {
-  def _2r5i6 : _ALU6T_2r5i6<opc, VC4CC_t, (outs ERegs:$rd), (ins ERegs:$ra, immSExt6:$imm),
-                          instr_asm # "\t$rd, $rd, $rb" # asm_suffix,
-                          [(set ERegs:$rd, (op ERegs:$ra, immSExt6:$imm))]>;
-  def _3r5 : _ALU6T_3r5<opc, VC4CC_t, (outs ERegs:$rd), (ins ERegs:$ra, ERegs:$rb),
-                        instr_asm # "\t$rd, $rd, $rb" # asm_suffix,
-                        [(set ERegs:$rd, (op ERegs:$ra, ERegs:$rb))]>;
-}
-
-//defm MOV        : _ALU4<VC4ALU_mov, "mov", []>;
-defm ADD        : ALU4B<VC4ALU_add, "add", add>;
-defm MUL        : ALU4B<VC4ALU_mul, "mul", mul>;
-defm SUB        : ALU4B<VC4ALU_sub, "sub", sub>;
-defm NOT        : ALU4U<VC4ALU_not, "not", UnOpFrag<(not node:$LHS)>>;
-//defm CMP        : _ALU4<VC4ALU_cmp, "cmp", []>;
-//defm BTEST      : _ALU4<VC4ALU_btest, "btest", []>;
-//defm BMASK      : _ALU4<VC4ALU_bmask, "bmask", []>;
-//defm BITSET     : ALU4B_2<"bitset", VC4ALU_bitset, BinOpFrag<(add node:$LHS>>;
-//defm BITCLEAR   : _ALU4<VC4ALU_bitclear, "bitclear", []>;
-//defm BITFLIP    : _ALU4<VC4ALU_bmask, "bitflip", []>;
-defm ADDSCALE8  : ALU4B<VC4ALU_addscale8, "addscale", BinOpFrag<(add node:$LHS, (shl node:$RHS, 3))>, " << 3">;
-//defm SIGNEXT    : _ALU4<VC4ALU_bmask, "signext", []>;
-defm LSR        : ALU4B<VC4ALU_lsr, "lsr", srl>;
-defm SHL        : ALU4B<VC4ALU_shl, "shl", shl>;
-defm ASR        : ALU4B<VC4ALU_asr, "asr", sra>;
-
-defm CMN        : _ALU5B_np<VC4ALU_cmn, "cmn">;
-defm BIC        : _ALU5B<VC4ALU_bic, "bic", BinOpFrag<(and node:$LHS, (not node:$RHS))>>;
-defm EOR        : _ALU5B<VC4ALU_eor, "eor", xor>;
-defm AND        : _ALU5B<VC4ALU_and, "and", and>;
-defm ROR        : _ALU5B<VC4ALU_ror, "ror", rotr>;
-defm RSUB       : _ALU5B_np<VC4ALU_rsub, "rsub";
-defm OR         : _ALU5B<VC4ALU_or, "or", or>;
-defm MAX        : _ALU5B_np<VC4ALU_max, "max">;
-defm MIN        : _ALU5B_np<VC4ALU_min, "min">;
-defm ADDSCALE2  : _ALU5B<VC4ALU_addscale2, "addscale", BinOpFrag<(add node:$LHS, (shl node:$RHS, 1))>, " << 1">;
-defm ADDSCALE4  : _ALU5B<VC4ALU_addscale4, "addscale", BinOpFrag<(add node:$LHS, (shl node:$RHS, 2))>, " << 2">;
-defm ADDSCALE16 : _ALU5B<VC4ALU_addscale16, "addscale", BinOpFrag<(add node:$LHS, (shl node:$RHS, 4))>, " << 4">;
-defm NEG        : _ALU5B_np<VC4ALU_neg, "neg">;
-defm MSB        : _ALU5B_np<VC4ALU_msb, "msb">;
-defm BREV       : _ALU5B_np<VC4ALU_brev, "brev">;
-defm ABS        : _ALU5B_np<VC4ALU_abs, "abs">;
+include "VC4InstrALU.td"
 
 
 //===----------------------------------------------------------------------===*/
@@ -264,7 +138,7 @@ defm ABS        : _ALU5B_np<VC4ALU_abs, "abs">;
 
 multiclass _ADD {
   // 1011 01ss sssd dddd iiii iiii iiii iiii   add rd, rs, i
-  def 2r5i16 : _S32_2r5i16<0b01101, (outs ERegs:$rd), (ins immSExt16:$imm),
+  def _2r5i16 : _S32_2r5i16<0b01101, (outs ERegs:$rd), (ins ERegs:$rs, immSExt16:$imm),
                   "add\t$rd, $rs, $imm",
                   [(set ERegs:$rd, (add ERegs:$rs, immSExt16:$imm))]>;
 
@@ -379,7 +253,7 @@ let isBranch = 1, isTerminator = 1 in {
 // 0001 1111 0ooo oooo -
 def B_o8: _S16_i7<0b00111110, (outs), (ins brtarget8:$imm), "b\t$imm", []>;
 // 1110 0001 0000 0000 oooo oooo oooo oooo oooo oooo oooo oooo   b $+o                              Branch to target.
-def B_o32: _S48_i32<0b000100000000, (outs), (ins brtarget:$off), "b\t$imm", []>;
+def B_o32: _S48_i32<0b000100000000, (outs), (ins brtarget:$imm), "b\t$imm", []>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -442,84 +316,38 @@ defm BLE : _BCC<VC4CC_le, "ble">;
 // Load/Store Instructions
 //===----------------------------------------------------------------------===//
 
-// Load/Store
-/*
-// Load/Store indirect via register - {ld,st}<w> rd, (rs)
-class LDST_2r4_DESC<string instr_asm> {
-  dag OutOperandList = (outs GRegs:$rd);
-  dag InOperandList = (ins GRegs:$rs);
-  string AsmString = instr_asm # "\t$rd, ($rs)";
-  string BaseOpcode = instr_asm;
+let Uses = [SP] in {
+  let mayLoad = 1 in {
+// 0000 010o oooo dddd - ld    rd, (sp+o*4)   Load from memory relative to stack pointer.
+    def LDWSP_1r4o7 : _S16_1r4i5<0b000010, (outs GRegs:$rd), (ins i32imm:$imm),
+                                 "ld\t$rd, (sp+$imm)",
+                                 [(set GRegs:$rd, (ldwsp immSExt5x4:$imm))]>;
+// 1010 1001 000d dddd oooo oooo oooo oooo   ld rd, (sp+o)
+    def LDWSP_1r5o16 : _S32_1r5i16<0b0101001000, (outs ERegs:$rd), (ins i32imm:$imm),
+                                   "ld\t$rd, (sp+$imm)",
+                                   [(set ERegs:$rd, (ldwsp immSExt16:$imm))]>;
+// 1110 0110 000d dddd 1100 1ooo oooo oooo oooo oooo oooo oooo   ld<w>  rd, (rs+o)
+    def LDWSP_1r5o27 : _S48_1r5i27<0b0110000, 0b11001, (outs ERegs:$rd), (ins i32imm:$imm),
+                                   "ld\t$rd, (sp+$imm)",
+                                   [(set ERegs:$rd, (ldwsp immSExt32:$imm))]>;
+  }
+
+  let mayStore = 1 in {
+// 0000 011o oooo dddd - st    rd, (sp+o*4)   Store to memory relative to stack pointer.
+    def STWSP_1r4o7 : _S16_1r4i5<0b000011, (outs), (ins GRegs:$rd, i32imm:$imm),
+                                 "st\t$rd, (sp+$imm)",
+                                 [(stwsp GRegs:$rd, immSExt5x4:$imm)]>;
+// 1010 1001 001d dddd oooo oooo oooo oooo   st<w> rd, (sp+o)
+    def STWSP_1r5o16 : _S32_1r5i16<0b0101001001, (outs), (ins ERegs:$rd, i32imm:$imm),
+                                   "st\t$rd, (sp+$imm)",
+                                   [(stwsp ERegs:$rd, immSExt16:$imm)]>;
+// 1110 0110 001d dddd 1100 1ooo oooo oooo oooo oooo oooo oooo   st<w>  rd, (rs+o)
+    def STWSP_1r5o27 : _S48_1r5i27<0b0110001, 0b11001, (outs), (ins ERegs:$rd, i32imm:$imm),
+                                   "st\t$rd, (sp+$imm)",
+                                   [(stwsp ERegs:$rd, immSExt32:$imm)]>;
+  }
 }
 
-class LDST_2r4_ENC<bit ldst, bits<2> w> : S16_2r4_FMT {
-  let Inst{14-11} = 0b0001;
-  let Inst{10-9} = w;
-  let Inst{8} = ldst;
-}
-
-multiclass _LDST<string instr_asm, VC4LS ls, LoadStoreWidth w> {
-  def _2r4 : LDST_2r4_ENC<ls.Value, w.Value>, LDST_2r4_DESC<instr_asm>;
-}
-
-// 0000 1ww0 ssss dddd - Load from memory.
-defm LDW : _LDST<"ld",  VC4LS_load, LSWu32>;
-defm LDH : _LDST<"ldh", VC4LS_load, LSWu16>;
-defm LDB : _LDST<"ldb", VC4LS_load, LSWu8>;
-
-// 0000 1ww1 ssss dddd - Store to memory.
-defm STW : _LDST<"st",  VC4LS_store, LSWu32>;
-defm STH : _LDST<"sth", VC4LS_store, LSWu16>;
-defm STB : _LDST<"stb", VC4LS_store, LSWu8>;
-*/
-
-// Load/Store Multiple Register
-def RegListAsmOperand : AsmOperandClass { let Name = "RegList"; }
-def reglist : Operand<i32> {
-}
-
-class LDSTM_DESC<bit lrpc, bit ldst> {
-  dag InOperandList = (ins reglist:$regs, variable_ops);
-  string BaseOpcode = !if(ldst, "stm", "ldm");
-  string AsmString = BaseOpcode # "\t$regs"
-                                # !if(lrpc, !if(ldst, ",lr", ",pc"), "")
-                                # !if(ldst, ",(--sp)", "(sp++)");
-}
-
-// 0000 0010 0bbm mmmm - ldm rb-rm,(sp++)     Load registers from stack (highest first).
-// 0000 0010 1bbm mmmm - stm rb-rm,(--sp)     Store registers to stack (lowest first).
-// 0000 0011 0bbm mmmm - ldm rb-rm,pc,(sp++)  Load registers from stack and final value into pc.
-// 0000 0011 1bbm mmmm - stm rb-rm,lr,(--sp)  Store lr followed by registers onto stack.
-class LDSTM_ENC<bit lrpc, bit ldst> : _S16_FMT {
-  let Inst{14-9} = 0b000001;
-  let Inst{8} = lrpc;
-  let Inst{7} = ldst;
-}
-
-class _LDSTM<bit lrpc, VC4LS ls> : LDSTM_ENC<lrpc, ls.Value>, LDSTM_DESC<lrpc, ls.Value>;
-
-def LDM    : _LDSTM<0, VC4LS_load>;
-def LDM_pc : _LDSTM<1, VC4LS_load>;
-def STM    : _LDSTM<0, VC4LS_store>;
-def STM_lr : _LDSTM<1, VC4LS_store>;
-
-// Load/Store - Stack Relative - {ld,st} rd, (sp+o*4)
-class LDSTsp_DESC<bit ldst> {
-  dag InOperandList = (ins GRegs:$rd, immSExt32:$off);
-  string BaseOpcode = !if(ldst, "st", "ld");
-  string AsmString = BaseOpcode # "\t$rd, (sp+$off)";
-}
-
-// 0000 010o oooo dddd
-class LDSTsp_ENC<bit ldst> : S16_1r4o5_FMT {
-  let Inst{14-10} = 0b00001;
-  let Inst{9} = ldst;
-}
-
-class _LDSTsp<VC4LS ls> : LDSTsp_ENC<ls.Value>, LDSTsp_DESC<ls.Value>;
-
-def LDWsp : _LDSTsp<VC4LS_load>;
-def STWsp : _LDSTsp<VC4LS_store>;
 
 //===----------------------------------------------------------------------===//
 // Return Instructions
@@ -528,19 +356,8 @@ def STWsp : _LDSTsp<VC4LS_store>;
 def VC4retflag : SDNode<"VC4ISD::RET_FLAG", SDTNone,
                         [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
-class BLR_DESC {
-  string AsmString = "b\tlr";
-  list<dag> Pattern = [(VC4retflag)];
-  string BaseOpcode = "b";
-}
-
-// 0000 0000 010d dddd
-class BLR_ENC : S16_1r5_FMT {
-  let Inst{14-0} = 0b000000001011010;
-}
-
 let isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [LR] in {
-  def BLR_RET : BLR_ENC, BLR_DESC;
+  def BLR_RET : _S16_0<0b000000001011010, "b\tlr", [(VC4retflag)]>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -550,8 +367,17 @@ let isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [LR] in {
 let Defs=[SP], Uses=[SP] in {
 def ADJCALLSTACKDOWN : VC4PseudoInst<(outs), (ins i32imm:$amt),
                                      "# ADJCALLSTACKDOWN $amt",
-                                     []>;
+                                     [(callseq_start timm:$amt)]>;
 def ADJCALLSTACKUP : VC4PseudoInst<(outs), (ins i32imm:$amt1, i32imm:$amt2),
                                    "# ADJCALLSTACKUP $amt1",
-                                   []>;
+                                   [(callseq_end timm:$amt1, timm:$amt2)]>;
 }
+
+// Load Word from Frame Index
+def LDWFI : VC4PseudoInst<(outs ERegs:$dst), (ins MEMii:$addr),
+                          "# LDWFI $dst, $addr",
+                          [(set ERegs:$dst, (load ADDRspii:$addr))]>;
+
+def STWFI : VC4PseudoInst<(outs), (ins ERegs:$src, MEMii:$addr),
+                          "# STWFI $src, $addr",
+                          [(store ERegs:$src, ADDRspii:$addr)]>;

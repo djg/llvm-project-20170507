@@ -274,7 +274,8 @@ static DecodeStatus decodeScalar16_ALU(MCInst &Inst, uint16_t Insn,
     break;
   case 0x3: // BIC
     DEBUG(dbgs() << "BIC\n");
-    Inst.setOpcode(VC4::BIC_2r4);
+    //Inst.setOpcode(VC4::BIC_2r4);
+    Inst.setOpcode(VC4::ADD_2r4);
     break;
   case 0x4: // MUL
     DEBUG(dbgs() << "MUL\n");
@@ -294,7 +295,8 @@ static DecodeStatus decodeScalar16_ALU(MCInst &Inst, uint16_t Insn,
     break;
   case 0x8: // NOT
     DEBUG(dbgs() << "NOT\n");
-    Inst.setOpcode(imm ? VC4::NOT_1r4i5 : VC4::NOT_2r4);
+    //Inst.setOpcode(imm ? VC4::NOT_1r4i5 : VC4::NOT_2r4);
+    Inst.setOpcode(VC4::ADD_2r4);
     break;
   case 0x9: // ROR
     DEBUG(dbgs() << "ROR\n");

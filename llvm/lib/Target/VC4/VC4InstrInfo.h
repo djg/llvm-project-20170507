@@ -25,6 +25,7 @@ namespace llvm {
 class VC4InstrInfo : public VC4GenInstrInfo {
   const VC4RegisterInfo RI;
   virtual void anchor();
+
 public:
   VC4InstrInfo();
 
@@ -49,6 +50,21 @@ public:
   /// any side effects other than storing to the stack slot.
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
+
+  void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+                   const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
+                   bool KillSrc) const override;
+
+  void storeRegToStackSlot(MachineBasicBlock &MBB,
+                           MachineBasicBlock::iterator MI,
+                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           const TargetRegisterClass *RC,
+                           const TargetRegisterInfo *TRI) const override;
+  void loadRegFromStackSlot(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator I,
+                            unsigned DestReg, int FrameIndex,
+                            const TargetRegisterClass *RC,
+                            const TargetRegisterInfo *TRI) const override;
 };
 
 }

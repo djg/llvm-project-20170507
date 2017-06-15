@@ -32,6 +32,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "vc4-frame-lowering"
+
 //===----------------------------------------------------------------------===//
 // VC4FrameLowering:
 //===----------------------------------------------------------------------===//
@@ -44,11 +46,17 @@ VC4FrameLowering::VC4FrameLowering(const VC4Subtarget &sti)
 void
 VC4FrameLowering::emitPrologue(MachineFunction &MF,
                                MachineBasicBlock &MBB) const {
+  DEBUG(dbgs() << "VC4FrameLowering::emitPrologue\n");
+  DEBUG(MF.dump());
+  DEBUG(MBB.dump());
 }
 
 void
 VC4FrameLowering::emitEpilogue(MachineFunction &MF,
                                MachineBasicBlock &MBB) const {
+  DEBUG(dbgs() << "VC4FrameLowering::emitEpilogue\n");
+  DEBUG(MF.dump());
+  DEBUG(MBB.dump());
 }
 
 bool

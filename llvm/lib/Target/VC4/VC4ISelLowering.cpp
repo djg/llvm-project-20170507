@@ -46,12 +46,14 @@ const char *VC4TargetLowering::getTargetNodeName(unsigned Opcode) const {
     return NULL;
   case VC4ISD::PC_RELATIVE:
     return "PC_RELATIVE";
-  case VC4ISD::SP_RELATIVE:
-    return "SP_RELATIVE";
   case VC4ISD::GP_RELATIVE:
     return "GP_RELATIVE";
   case VC4ISD::R0_RELATIVE:
     return "R0_RELATIVE";
+  case VC4ISD::LDWSP:
+    return "LDWSP";
+  case VC4ISD::STWSP:
+    return "STWSP";
   case VC4ISD::CALL:
     return "CALL";
   case VC4ISD::CALL_NOLINK:

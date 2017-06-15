@@ -39,6 +39,10 @@ VC4InstrInfo::VC4InstrInfo()
     RI() {
 }
 
+static bool isZeroImm(const MachineOperand &op) {
+  return op.isImm() && op.getImm() == 0;
+}
+
 /// isLoadFromStackSlot - If the specified machine instruction is a direct
 /// load from a stack slot, return the virtual or physical register number of
 /// the destination along with the FrameIndex of the loaded stack slot.  If
@@ -47,17 +51,15 @@ VC4InstrInfo::VC4InstrInfo()
 unsigned
 VC4InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                   int &FrameIndex) const {
-  // TODO:
-  // int Opcode = MI.getOpcode();
-  // if (Opcode == VC4::LDWFI)
-  // {
-  //   if ((MI.getOperand(1).isFI()) &&  // is a stack slot
-  //       (MI.getOperand(2).isImm()) && // the imm is zero
-  //       (isZeroImm(MI.getOperand(2)))) {
-  //     FrameIndex = MI.getOperand(1).getIndex();
-  //     return MI.getOperand(0).getReg();
-  //   }
-  // }
+  int Opcode = MI.getOpcode();
+  if (Opcode == VC4::LDWFI) {
+     if ((MI.getOperand(1).isFI()) &&  // is a stack slot
+         (MI.getOperand(2).isImm()) && // the imm is zero
+         (isZeroImm(MI.getOperand(2)))) {
+       FrameIndex = MI.getOperand(1).getIndex();
+       return MI.getOperand(0).getReg();
+     }
+  }
   return 0;
 }
 
@@ -69,16 +71,78 @@ VC4InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 unsigned
 VC4InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                  int &FrameIndex) const {
-  // TODO:
-  // int Opcode = MI.getOpcode();
-  // if (Opcode == VC4::STWFI)
-  // {
-  //   if ((MI.getOperand(1).isFI()) &&  // is a stack slot
-  //       (MI.getOperand(2).isImm()) && // the imm is zero
-  //       (isZeroImm(MI.getOperand(2)))) {
-  //     FrameIndex = MI.getOperand(1).getIndex();
-  //     return MI.getOperand(0).getReg();
-  //   }
-  // }
+  int Opcode = MI.getOpcode();
+  if (Opcode == VC4::STWFI) {
+    if ((MI.getOperand(1).isFI()) &&  // is a stack slot
+        (MI.getOperand(2).isImm()) && // the imm is zero
+        (isZeroImm(MI.getOperand(2)))) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
+    }
+  }
   return 0;
+}
+
+void
+VC4InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+                          const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
+                          bool KillSrc) const {
+  bool EDest = VC4::ERegsRegClass.contains(DestReg);
+  bool ESrc = VC4::ERegsRegClass.contains(SrcReg);
+
+  if (ESrc || EDest) {
+    BuildMI(MBB, I, DL, get(VC4::MOV_2r5), DestReg)
+      .addReg(SrcReg, getKillRegState(KillSrc))
+      .addReg(SrcReg, 0);
+  } else {
+    BuildMI(MBB, I, DL, get(VC4::MOV_2r4), DestReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
+  }
+}
+
+void
+VC4InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator I,
+                                  unsigned SrcReg, bool isKill, int FrameIndex,
+                                  const TargetRegisterClass *RC,
+                                  const TargetRegisterInfo *TRI) const {
+  DebugLoc DL;
+  if (I != MBB.end() && !I->isDebugValue()) {
+    DL = I->getDebugLoc();
+  }
+  MachineFunction *MF = MBB.getParent();
+  const MachineFrameInfo &MFI = MF->getFrameInfo();
+  MachineMemOperand *MMO = MF->getMachineMemOperand(
+    MachinePointerInfo::getFixedStack(*MF, FrameIndex),
+    MachineMemOperand::MOStore,
+    MFI.getObjectSize(FrameIndex),
+    MFI.getObjectAlignment(FrameIndex));
+  BuildMI(MBB, I, DL, get(VC4::STWFI))
+    .addReg(SrcReg, getKillRegState(isKill))
+    .addFrameIndex(FrameIndex)
+    .addImm(0)
+    .addMemOperand(MMO);
+}
+
+void
+VC4InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator I,
+                                   unsigned DestReg, int FrameIndex,
+                                   const TargetRegisterClass *RC,
+                                   const TargetRegisterInfo *TRI) const {
+  DebugLoc DL;
+  if (I != MBB.end() && !I->isDebugValue()) {
+    DL = I->getDebugLoc();
+  }
+  MachineFunction *MF = MBB.getParent();
+  const MachineFrameInfo &MFI = MF->getFrameInfo();
+  MachineMemOperand *MMO = MF->getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(*MF, FrameIndex),
+      MachineMemOperand::MOLoad,
+      MFI.getObjectSize(FrameIndex),
+      MFI.getObjectAlignment(FrameIndex));
+  BuildMI(MBB, I, DL, get(VC4::LDWFI), DestReg)
+    .addFrameIndex(FrameIndex)
+    .addImm(0)
+    .addMemOperand(MMO);
 }
