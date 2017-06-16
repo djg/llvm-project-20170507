@@ -39,9 +39,19 @@ def bit_xform : SDNodeXForm<imm, [{
   return getI32Imm(Log2_32(N->getZExtValue()), SDLoc(N));
 }]>;
 
+// SPOffsetImm5x4 - An SP relative offset of form 4*o where o is sign
+// ext 5-bit int.
+def SPOffsetImm5x4AsmOperand : AsmOperandClass {
+  let Name = "SPOffsetImm5x4";
+  let ParserMethod = "parseSPOffsetImm5x4";
+}
+def spoffset5x4_imm : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<5,2>(Imm); }], div4> {
+    let PrintMethod = "printSPOffset5x4ImmOperand";
+    let ParserMatchClass = SPOffsetImm5x4AsmOperand;
+}
+
 // Instruction operand types
 def immSExt5    : Operand<i32>, ImmLeaf<i32, [{ return isInt<5>(Imm); }]>;
-def immSExt5x4  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<5,2>(Imm); }], div4>;
 def immSExt6    : Operand<i32>, ImmLeaf<i32, [{ return isInt<6>(Imm); }]>;
 def immSExt6x4  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<6,2>(Imm); }], div4>;
 def immSExt7x2  : Operand<i32>, ImmLeaf<i32, [{ return isShiftedInt<7,1>(Imm); }], div2>;
@@ -319,9 +329,9 @@ defm BLE : _BCC<VC4CC_le, "ble">;
 let Uses = [SP] in {
   let mayLoad = 1 in {
 // 0000 010o oooo dddd - ld    rd, (sp+o*4)   Load from memory relative to stack pointer.
-    def LDWSP_1r4o7 : _S16_1r4i5<0b000010, (outs GRegs:$rd), (ins i32imm:$imm),
+    def LDWSP_1r4o7 : _S16_1r4i5<0b000010, (outs GRegs:$rd), (ins spoffset5x4_imm:$imm),
                                  "ld\t$rd, (sp+$imm)",
-                                 [(set GRegs:$rd, (ldwsp immSExt5x4:$imm))]>;
+                                 [(set GRegs:$rd, (ldwsp spoffset5x4_imm:$imm))]>;
 // 1010 1001 000d dddd oooo oooo oooo oooo   ld rd, (sp+o)
     def LDWSP_1r5o16 : _S32_1r5i16<0b0101001000, (outs ERegs:$rd), (ins i32imm:$imm),
                                    "ld\t$rd, (sp+$imm)",
@@ -334,9 +344,9 @@ let Uses = [SP] in {
 
   let mayStore = 1 in {
 // 0000 011o oooo dddd - st    rd, (sp+o*4)   Store to memory relative to stack pointer.
-    def STWSP_1r4o7 : _S16_1r4i5<0b000011, (outs), (ins GRegs:$rd, i32imm:$imm),
+    def STWSP_1r4o7 : _S16_1r4i5<0b000011, (outs), (ins GRegs:$rd, spoffset5x4_imm:$imm),
                                  "st\t$rd, (sp+$imm)",
-                                 [(stwsp GRegs:$rd, immSExt5x4:$imm)]>;
+                                 [(stwsp GRegs:$rd, spoffset5x4_imm:$imm)]>;
 // 1010 1001 001d dddd oooo oooo oooo oooo   st<w> rd, (sp+o)
     def STWSP_1r5o16 : _S32_1r5i16<0b0101001001, (outs), (ins ERegs:$rd, i32imm:$imm),
                                    "st\t$rd, (sp+$imm)",

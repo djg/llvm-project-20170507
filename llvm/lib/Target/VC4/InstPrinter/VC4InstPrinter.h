@@ -23,6 +23,10 @@ public:
   void printInst(const MCInst *MI, raw_ostream &O, StringRef Annot,
                  const MCSubtargetInfo &STI) override;
 
+  void printSPOffset5x4ImmOperand(const MCInst *MI,
+                                  unsigned OpNum,
+                                  raw_ostream &O);
+
 private:
   void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
 };

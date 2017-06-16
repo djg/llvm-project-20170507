@@ -15,6 +15,11 @@ using namespace llvm;
 #define PRINT_ALIAS_INSTR
 #include "VC4GenAsmWriter.inc"
 
+static bool
+isImm5(unsigned Imm) {
+  return isInt<5>(Imm);
+}
+
 void
 VC4InstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
   OS << StringRef(getRegisterName(RegNo)).lower();
@@ -44,4 +49,14 @@ VC4InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
 
   assert(Op.isExpr() && "unknown operand kind in printOperand");
   Op.getExpr()->print(O, &MAI, true);
+}
+
+void
+VC4InstPrinter::printSPOffset5x4ImmOperand(const MCInst *MI,
+                                  unsigned OpNum,
+                                  raw_ostream &O)
+{
+  unsigned Imm = MI->getOperand(OpNum).getImm();
+  assert(isImm5(Imm) && "illegal SP offset!");
+  O << markup("<imm:") << (4 * Imm) << markup(">");
 }

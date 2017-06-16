@@ -209,7 +209,6 @@ VC4RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   assert(Offset%4 == 0 && "Misaligned stack offset");
   DEBUG(errs() << "Offset             : " << Offset << "\n" << "<--------->\n");
-  Offset/=4;
 
   unsigned Reg = MI.getOperand(0).getReg();
   bool IsGReg = VC4::GRegsRegClass.contains(Reg);
@@ -224,6 +223,7 @@ VC4RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   } else { // SP relative
     unsigned Size = 0;
     if (IsGReg && isShiftedUInt<5,2>(Offset)) {
+      Offset /= 4;
       Size = Imm5;
     } else if (isInt<16>(Offset)) {
       Size = Imm16;
