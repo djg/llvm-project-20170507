@@ -146,20 +146,6 @@ include "VC4InstrALU.td"
 // Add register + immediate
 //===----------------------------------------------------------------------===*/
 
-multiclass _ADD {
-  // 1011 01ss sssd dddd iiii iiii iiii iiii   add rd, rs, i
-  def _2r5i16 : _S32_2r5i16<0b01101, (outs ERegs:$rd), (ins ERegs:$rs, immSExt16:$imm),
-                  "add\t$rd, $rs, $imm",
-                  [(set ERegs:$rd, (add ERegs:$rs, immSExt16:$imm))]>;
-
-  // 1110 11ss sssd dddd uuuu uuuu uuuu uuuu uuuu uuuu uuuu uuuu
-  def _2r5i32 : _S48_2r5i32<0b11, (outs ERegs:$rd), (ins ERegs:$rs, immZExt32:$imm),
-                  "add\t$rd, $rs, $imm",
-                  [(set ERegs:$rd, (add ERegs:$rs, immZExt32:$imm))]>;
-}
-
-defm ADD : _ADD;
-
 multiclass _ADDpc {
   // 1011 1111 111d dddd oooo oooo oooo oooo   add rd, pc, o
   def _1r5i16 : _S32_1r5i16<0b0111111111, (outs ERegs:$rd), (ins immSExt16:$imm),
@@ -289,16 +275,16 @@ let isCall=1, Defs = [R0, R1, R2, R3, R4, R5, LR] in {
 // Conditional Branch
 
 // 0001 1ccc cooo oooo - b<cc> $+2*o
-class _BCC_o8<VC4CondCode cc, string instr_asm>
+class _BCC_o8<VC4CC cc, string instr_asm>
     : _S16_i7<{0b0011, cc.Value{3-0}}, (outs), (ins brtarget:$imm),
               instr_asm # "\t$imm", []>;
 
 // 1001 cccc 0ooo oooo oooo oooo oooo oooo - b<cc> $+2*o
-class _BCC_o24<VC4CondCode cc, string instr_asm>
+class _BCC_o24<VC4CC cc, string instr_asm>
     : _S32_i23<{0b001, cc.Value{3-0}, 0b0}, (outs), (ins brtarget:$imm),
               instr_asm # "\t$imm", []>;
 
-multiclass _BCC<VC4CondCode cc, string instr_asm> {
+multiclass _BCC<VC4CC cc, string instr_asm> {
   def _o8 : _BCC_o8<cc, instr_asm>;
   def _o24 : _BCC_o24<cc, instr_asm>;
 }

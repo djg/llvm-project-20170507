@@ -21,26 +21,26 @@ def LSWu16   : LoadStoreWidth<1>;
 def LSWu8    : LoadStoreWidth<2>;
 def LSWs16s8 : LoadStoreWidth<3>;
 
-class VC4CondCode<bits<4> val> {
+class VC4CC<bits<4> val> {
   bits<4> Value = val;
 }
 
-def VC4CC_eq : VC4CondCode<0b0000>; // == 0
-def VC4CC_ne : VC4CondCode<0b0001>; // != 0
-def VC4CC_cs : VC4CondCode<0b0010>; // Unsigned <
-def VC4CC_cc : VC4CondCode<0b0011>; // Unsigned >=
-def VC4CC_mi : VC4CondCode<0b0100>; // Negative
-def VC4CC_pl : VC4CondCode<0b0101>; // Positive
-def VC4CC_vs : VC4CondCode<0b0110>; // Overflow set
-def VC4CC_vc : VC4CondCode<0b0111>; // Overflow clear
-def VC4CC_hi : VC4CondCode<0b1000>; // Unsigned >
-def VC4CC_ls : VC4CondCode<0b1001>; // Unsigned <=
-def VC4CC_ge : VC4CondCode<0b1010>; // Signed >=
-def VC4CC_lt : VC4CondCode<0b1011>; // Signed <
-def VC4CC_gt : VC4CondCode<0b1100>; // Signed >
-def VC4CC_le : VC4CondCode<0b1101>; // Signed <=
-def VC4CC_t  : VC4CondCode<0b1110>; // Always
-def VC4CC_f  : VC4CondCode<0b1111>; // Never
+def VC4CC_eq : VC4CC<0b0000>; // == 0
+def VC4CC_ne : VC4CC<0b0001>; // != 0
+def VC4CC_cs : VC4CC<0b0010>; // Unsigned <
+def VC4CC_cc : VC4CC<0b0011>; // Unsigned >=
+def VC4CC_mi : VC4CC<0b0100>; // Negative
+def VC4CC_pl : VC4CC<0b0101>; // Positive
+def VC4CC_vs : VC4CC<0b0110>; // Overflow set
+def VC4CC_vc : VC4CC<0b0111>; // Overflow clear
+def VC4CC_hi : VC4CC<0b1000>; // Unsigned >
+def VC4CC_ls : VC4CC<0b1001>; // Unsigned <=
+def VC4CC_ge : VC4CC<0b1010>; // Signed >=
+def VC4CC_lt : VC4CC<0b1011>; // Signed <
+def VC4CC_gt : VC4CC<0b1100>; // Signed >
+def VC4CC_le : VC4CC<0b1101>; // Signed <=
+def VC4CC_t  : VC4CC<0b1110>; // Always
+def VC4CC_f  : VC4CC<0b1111>; // Never
 
 
 //===----------------------------------------------------------------------===//
@@ -178,7 +178,7 @@ class _S16_i7<bits<8> opc, dag outs, dag ins, string asmstr, list<dag> pattern>
 // S32 - 1... .... .... .... .... .... .... ....
 class _S32<dag outs, dag ins, string asmstr, list<dag> pattern>
     : VC4Inst<4, outs, ins, asmstr, pattern> {
-  let Inst{31-28} = 0b1110;
+  let Inst{31} = 0b1;
 }
 
 // S32_1r4 - 1... .... .... dddd .... .... .... ....

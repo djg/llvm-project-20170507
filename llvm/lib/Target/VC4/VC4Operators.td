@@ -16,3 +16,15 @@ def VC4RetFlag : SDNode<"VC4ISD::RET_FLAG", SDTNone,
 //===----------------------------------------------------------------------===//
 // Custom SDNodes
 //===----------------------------------------------------------------------===//
+
+
+//===----------------------------------------------------------------------===//
+// Operands
+//===----------------------------------------------------------------------===//
+
+def CondCodeOperand : AsmOperandClass { let Name = "CondCode"; }
+def pred : PredicateOperand<OtherVT, (ops i32imm), (ops (i32 VC4CC_t.Value))> {
+  let PrintMethod = "printPredicateOperand";
+  let ParserMatchClass = CondCodeOperand;
+  let DecoderMethod = "DecodePredicateOperand";
+}
